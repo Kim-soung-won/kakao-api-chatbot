@@ -1,0 +1,25 @@
+{
+  "name": "@sprint-kakao/playground",
+  "version": "0.0.0",
+  "private": true,
+  "description": "카카오톡 채팅창 렌더러 흉내 + 요청 시뮬레이터 (기능 테스트 하니스)",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@sprint-kakao/contract": "workspace:*",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "@vitejs/plugin-react": "^4.3.3",
+    "typescript": "^5.6.3",
+    "vite": "^5.4.11"
+  }
+}
