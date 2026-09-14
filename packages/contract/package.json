@@ -1,0 +1,26 @@
+{
+  "name": "@sprint-kakao/contract",
+  "version": "0.0.0",
+  "private": true,
+  "description": "카카오 챗봇 스킬 서버의 요청/응답 인터페이스 계약 (앱 레벨 단일 출처)",
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": ["dist"],
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "tsup": "^8.3.5",
+    "typescript": "^5.6.3"
+  }
+}
