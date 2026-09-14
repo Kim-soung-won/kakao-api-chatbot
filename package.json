@@ -1,0 +1,15 @@
+{
+  "name": "sprint-kakao",
+  "version": "0.0.0",
+  "private": true,
+  "description": "카카오톡 챗봇 스킬 서버 + 렌더링 테스트 플레이그라운드 (모노레포)",
+  "scripts": {
+    "build": "pnpm -r build",
+    "dev": "pnpm -r --parallel dev",
+    "typecheck": "pnpm -r typecheck"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.3"
+  },
+  "packageManager": "pnpm@8.15.9"
+}
