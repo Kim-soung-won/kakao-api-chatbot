@@ -1,0 +1,24 @@
+{
+  "name": "@sprint-kakao/server",
+  "version": "0.0.0",
+  "private": true,
+  "description": "카카오 챗봇 스킬 서버 (/skill mock 응답, /echo 실제 요청 캡처)",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch --env-file=.env src/index.ts",
+    "start": "node --env-file=.env dist/index.js",
+    "build": "tsup",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@sprint-kakao/contract": "workspace:*",
+    "fastify": "^5.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.9.0",
+    "pino-pretty": "^13.0.0",
+    "tsup": "^8.3.5",
+    "tsx": "^4.19.2",
+    "typescript": "^5.6.3"
+  }
+}
