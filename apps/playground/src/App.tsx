@@ -3,6 +3,7 @@ import type { SkillPayload, SkillResponse } from "@sprint-kakao/contract";
 import { KakaoRenderer } from "./renderer/KakaoRenderer.js";
 import { validate, type Warning } from "./renderer/validate.js";
 import { MessageBuilder } from "./builder/MessageBuilder.js";
+import { FriendTalkBuilder } from "./builder/FriendTalkBuilder.js";
 
 interface Turn {
   utterance: string;
@@ -108,14 +109,19 @@ function ChatPane() {
   );
 }
 
-/** 우측 패널: 추가 도구(메시지 카드 빌더 등). */
+/** 우측 패널: 발송 카드 디자이너 (친구톡=채널 발송 / 메시지 템플릿=공유·개인). */
 function ToolsPane() {
+  const [tool, setTool] = useState<"friendtalk" | "message">("friendtalk");
   return (
     <main className="pane-tools">
       <header className="pane-head">
-        <strong>메시지 카드 빌더 <span className="pane-sub">발송용 · 메시지 API</span></strong>
+        <nav className="viewnav">
+          <button className={tool === "friendtalk" ? "on" : ""} onClick={() => setTool("friendtalk")}>친구톡 (채널)</button>
+          <button className={tool === "message" ? "on" : ""} onClick={() => setTool("message")}>메시지 템플릿 (공유)</button>
+        </nav>
+        <span className="pane-sub">{tool === "friendtalk" ? "비즈메시지 · 채널 친구" : "developers · 공유/개인"}</span>
       </header>
-      <MessageBuilder />
+      {tool === "friendtalk" ? <FriendTalkBuilder /> : <MessageBuilder />}
     </main>
   );
 }
