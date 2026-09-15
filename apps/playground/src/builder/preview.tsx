@@ -1,5 +1,6 @@
 import type {
   CalendarTemplate,
+  CarouselTemplate,
   Commerce,
   CommerceTemplate,
   FeedContent,
@@ -34,9 +35,34 @@ export function MessagePreview({ t }: { t: MessageTemplate }) {
     case "commerce": return <CommercePreview t={t} />;
     case "location": return <LocationPreview t={t} />;
     case "calendar": return <CalendarPreview t={t} />;
+    case "carousel": return <CarouselPreview t={t} />;
     case "feed": return <FeedPreview t={t} />;
     default: return <div className="msg-card"><div className="msg-body"><div className="msg-desc">알 수 없는 object_type</div></div></div>;
   }
+}
+
+function CarouselPreview({ t }: { t: CarouselTemplate }) {
+  return (
+    <div>
+      <div className="msg-carousel">
+        {(t.items ?? []).map((it, i) => (
+          <div className="msg-carousel-cell" key={i}>
+            <div className="msg-card" onClick={() => open(it.link?.web_url)}>
+              {it.image_url && <img className="msg-img" src={it.image_url} alt="" />}
+              <div className="msg-body">
+                <div className="msg-title">{it.title || "(제목)"}</div>
+                {it.description && <div className="msg-desc">{it.description}</div>}
+              </div>
+              <Buttons buttons={it.buttons} />
+            </div>
+          </div>
+        ))}
+      </div>
+      {t.tail?.link?.web_url && (
+        <button className="msg-tail" onClick={() => open(t.tail?.link?.web_url)}>더보기 →</button>
+      )}
+    </div>
+  );
 }
 
 function FeedPreview({ t }: { t: FeedTemplate }) {

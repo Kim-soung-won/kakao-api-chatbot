@@ -15,6 +15,7 @@ import {
   MAX_QUICK_REPLIES,
   TEXT_LIMITS,
   type Button,
+  type CommerceCard,
   type ItemCard,
   type Output,
   type SkillResponse,
@@ -55,6 +56,17 @@ function checkOutput(output: Output, path: string): Warning[] {
     if (alt && alt.length > TEXT_LIMITS.simpleImageAltText) w.push({ path, message: `altText ${alt.length}자 > ${TEXT_LIMITS.simpleImageAltText}자` });
   }
 
+  if ("textCard" in output) {
+    const c = output.textCard;
+    if (!c.title && !c.description) w.push({ path, message: "textCard는 title/description 중 최소 하나 필수" });
+    if (c.description && c.description.length > TEXT_LIMITS.textCardDescription) w.push({ path, message: `description ${c.description.length}자 > ${TEXT_LIMITS.textCardDescription}자` });
+    w.push(...checkButtons(c.buttons, `${path}.buttons`, c.buttonLayout));
+  }
+
+  if ("commerceCard" in output) {
+    w.push(...checkCommerce(output.commerceCard, path));
+  }
+
   if ("basicCard" in output) {
     const c = output.basicCard;
     if (c.title && c.title.length > TEXT_LIMITS.basicCardTitle) w.push({ path, message: `title ${c.title.length}자 > ${TEXT_LIMITS.basicCardTitle}자` });
@@ -70,6 +82,9 @@ function checkOutput(output: Output, path: string): Warning[] {
     if (c.items.length > MAX_LIST_ITEMS) w.push({ path, message: `items ${c.items.length}개 > 최대 ${MAX_LIST_ITEMS}개` });
     c.items.forEach((it, i) => {
       if (!it.title) w.push({ path: `${path}.items[${i}]`, message: "title 필수인데 비어 있음" });
+      if (!it.action && !it.link) {
+        w.push({ path: `${path}.items[${i}]`, message: "항목 클릭 동작 필요 — action 또는 link 중 하나 필수" });
+      }
     });
     w.push(...checkButtons(c.buttons, `${path}.buttons`));
   }
@@ -93,8 +108,25 @@ function checkOutput(output: Output, path: string): Warning[] {
     if (c.type === "itemCard") {
       (c.items as ItemCard[]).forEach((it, i) => w.push(...checkItemCard(it, `${path}.items[${i}]`, true)));
     }
+    if (c.type === "commerceCard") {
+      (c.items as CommerceCard[]).forEach((it, i) => w.push(...checkCommerce(it, `${path}.items[${i}]`)));
+    }
   }
 
+  return w;
+}
+
+function checkCommerce(card: CommerceCard, path: string): Warning[] {
+  const w: Warning[] = [];
+  if (!(card.price > 0)) w.push({ path, message: "commerceCard.price는 0보다 커야 함" });
+  if (card.discountRate != null && card.discountedPrice == null) {
+    w.push({ path, message: "discountRate는 discountedPrice가 함께 있어야 유효" });
+  }
+  if (!card.thumbnails || card.thumbnails.length === 0) {
+    w.push({ path, message: "commerceCard.thumbnails 최소 1개 필요" });
+  }
+  if (card.title && card.title.length > TEXT_LIMITS.commerceCardTitle) w.push({ path, message: `title ${card.title.length}자 > ${TEXT_LIMITS.commerceCardTitle}자` });
+  w.push(...checkButtons(card.buttons, `${path}.buttons`, card.buttonLayout));
   return w;
 }
 

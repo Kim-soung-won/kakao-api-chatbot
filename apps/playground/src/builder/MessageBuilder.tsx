@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from "react";
 import {
   MESSAGE_LIMITS,
   type CalendarTemplate,
+  type CarouselFeedItem,
+  type CarouselTemplate,
   type CommerceTemplate,
   type FeedContent,
   type FeedTemplate,
@@ -36,6 +38,7 @@ const TYPES: { key: MessageObjectType; label: string }[] = [
   { key: "commerce", label: "Commerce" },
   { key: "location", label: "Location" },
   { key: "calendar", label: "Calendar" },
+  { key: "carousel", label: "Carousel" },
 ];
 
 const toButtons = (bs: ButtonDraft[]): MsgButton[] =>
@@ -82,6 +85,12 @@ export function MessageBuilder() {
   // calendar
   const [idType, setIdType] = useState<"event" | "calendar">("event");
   const [calId, setCalId] = useState("6351f57c7ec8e318d0b809a0");
+  // carousel (feed)
+  const [carouselItems, setCarouselItems] = useState<ListDraft[]>([
+    { title: "보육료 지원", description: "월 최대 51만원", imageUrl: IMG, webUrl: "https://example.com/1" },
+    { title: "교육활동비", description: "연 최대 30만원", imageUrl: IMG, webUrl: "https://example.com/2" },
+  ]);
+  const [tailUrl, setTailUrl] = useState("");
 
   const template = useMemo<MessageTemplate>(() => {
     const btns = buttons.length ? { buttons: toButtons(buttons) } : {};
@@ -147,6 +156,22 @@ export function MessageBuilder() {
         };
         return t;
       }
+      case "carousel": {
+        const t: CarouselTemplate = {
+          object_type: "carousel",
+          type: "feed",
+          items: carouselItems.map(
+            (it): CarouselFeedItem => ({
+              title: it.title,
+              ...(it.description ? { description: it.description } : {}),
+              ...(it.imageUrl ? { image_url: it.imageUrl } : {}),
+              link: { web_url: it.webUrl || "https://example.com" },
+            }),
+          ),
+          ...(tailUrl ? { tail: { link: { web_url: tailUrl } } } : {}),
+        };
+        return t;
+      }
       default: {
         const t: FeedTemplate = {
           object_type: "feed",
@@ -159,7 +184,7 @@ export function MessageBuilder() {
         return t;
       }
     }
-  }, [objectType, title, description, imageUrl, webUrl, buttons, showSocial, likeCount, viewCount, text, buttonTitle, headerTitle, listContents, regularPrice, discountPrice, discountRate, currencyUnit, address, addressTitle, idType, calId]);
+  }, [objectType, title, description, imageUrl, webUrl, buttons, showSocial, likeCount, viewCount, text, buttonTitle, headerTitle, listContents, regularPrice, discountPrice, discountRate, currencyUnit, address, addressTitle, idType, calId, carouselItems, tailUrl]);
 
   // 발송 JSON: 폼을 만지면 formJson이 바뀌어 draft를 재생성하고,
   // 사용자가 JSON을 직접 편집하면 그 편집본(parsed)이 미리보기·검증을 구동한다.
@@ -187,7 +212,7 @@ export function MessageBuilder() {
 
   const warnings = validateMessage(effective);
   const usesContent = objectType === "feed" || objectType === "commerce" || objectType === "location" || objectType === "calendar";
-  const usesButtons = objectType !== "text";
+  const usesButtons = objectType !== "text" && objectType !== "carousel";
 
   return (
     <div className="builder">
@@ -252,6 +277,33 @@ export function MessageBuilder() {
               </select>
             </Field>
             <Field label="ID (id)"><input value={calId} onChange={(e) => setCalId(e.target.value)} /></Field>
+          </>
+        )}
+
+        {objectType === "carousel" && (
+          <>
+            <div className="field">
+              <label>카드 (items) — {carouselItems.length}/{MESSAGE_LIMITS.carouselItemsMax} (최소 {MESSAGE_LIMITS.carouselItemsMin})</label>
+              {carouselItems.map((it, i) => (
+                <div className="subcard" key={i}>
+                  <div className="btn-row">
+                    <input value={it.title} onChange={(e) => patchCarousel(i, { title: e.target.value })} placeholder="title" />
+                    {carouselItems.length > MESSAGE_LIMITS.carouselItemsMin && (
+                      <button className="mini danger" onClick={() => setCarouselItems((l) => l.filter((_, j) => j !== i))}>✕</button>
+                    )}
+                  </div>
+                  <input value={it.description} onChange={(e) => patchCarousel(i, { description: e.target.value })} placeholder="description" />
+                  <div className="btn-row">
+                    <input value={it.imageUrl} onChange={(e) => patchCarousel(i, { imageUrl: e.target.value })} placeholder="image_url" />
+                    <input value={it.webUrl} onChange={(e) => patchCarousel(i, { webUrl: e.target.value })} placeholder="link" />
+                  </div>
+                </div>
+              ))}
+              {carouselItems.length < MESSAGE_LIMITS.carouselItemsMax && (
+                <button className="mini" onClick={() => setCarouselItems((l) => [...l, { title: "새 카드", description: "", imageUrl: IMG, webUrl: "https://example.com" }])}>+ 카드 추가</button>
+              )}
+            </div>
+            <Field label="tail 공통 버튼 링크 (선택)"><input value={tailUrl} onChange={(e) => setTailUrl(e.target.value)} placeholder="비우면 tail 없음" /></Field>
           </>
         )}
 
@@ -347,6 +399,9 @@ export function MessageBuilder() {
   function patchList(i: number, p: Partial<ListDraft>) {
     setListContents((l) => l.map((it, j) => (j === i ? { ...it, ...p } : it)));
   }
+  function patchCarousel(i: number, p: Partial<ListDraft>) {
+    setCarouselItems((l) => l.map((it, j) => (j === i ? { ...it, ...p } : it)));
+  }
 }
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
@@ -384,6 +439,13 @@ function validateMessage(t: MessageTemplate): string[] {
     case "calendar":
       if (!t.id?.trim()) w.push("id는 필수");
       break;
+    case "carousel": {
+      const n = t.items?.length ?? 0;
+      if (n < MESSAGE_LIMITS.carouselItemsMin) w.push(`items ${n}개 < 최소 ${MESSAGE_LIMITS.carouselItemsMin}개`);
+      if (n > MESSAGE_LIMITS.carouselItemsMax) w.push(`items ${n}개 > 최대 ${MESSAGE_LIMITS.carouselItemsMax}개`);
+      t.items?.forEach((it, i) => { if (!it?.title?.trim()) w.push(`items[${i}].title 필수`); });
+      break;
+    }
     default:
       if (!t.content?.title?.trim()) w.push("content.title은 필수");
       if (!t.content?.link?.web_url) w.push("content.link에 web_url이 필요");

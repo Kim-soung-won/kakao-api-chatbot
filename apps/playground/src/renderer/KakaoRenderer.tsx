@@ -6,11 +6,13 @@ import type {
   BasicCard,
   Button,
   Carousel,
+  CommerceCard,
   ItemCard,
   ListCard,
   Output,
   QuickReply,
   SkillResponse,
+  TextCard,
 } from "@sprint-kakao/contract";
 
 export interface RendererProps {
@@ -41,6 +43,43 @@ function Buttons({ buttons, onAction, layout }: { buttons?: Button[]; onAction: 
           {b.label}
         </button>
       ))}
+    </div>
+  );
+}
+
+function TextCardView({ card, onAction }: { card: TextCard; onAction: RendererProps["onAction"] }) {
+  return (
+    <div className="card">
+      <div className="card-body">
+        {card.title && <div className="card-title">{card.title}</div>}
+        {card.description && <div className="card-desc">{card.description}</div>}
+      </div>
+      <Buttons buttons={card.buttons} onAction={onAction} layout={card.buttonLayout} />
+    </div>
+  );
+}
+
+function CommerceCardView({ card, onAction }: { card: CommerceCard; onAction: RendererProps["onAction"] }) {
+  const unit = card.currency === "won" || !card.currency ? "원" : ` ${card.currency}`;
+  const final = card.discountedPrice ?? card.price;
+  return (
+    <div className="card">
+      {card.thumbnails?.[0]?.imageUrl && (
+        <img className="card-img ratio-2-1" src={card.thumbnails[0].imageUrl} alt="" />
+      )}
+      <div className="card-body">
+        {card.title && <div className="card-title">{card.title}</div>}
+        {card.description && <div className="card-desc">{card.description}</div>}
+        <div className="commerce-price">
+          {card.discountRate ? <span className="commerce-rate">{card.discountRate}%</span> : null}
+          <span className="commerce-final">{final.toLocaleString()}{unit}</span>
+          {card.discountedPrice != null ? (
+            <span className="commerce-regular">{card.price.toLocaleString()}{unit}</span>
+          ) : null}
+        </div>
+        {card.profile && <div className="commerce-profile">{card.profile.nickname}</div>}
+      </div>
+      <Buttons buttons={card.buttons} onAction={onAction} layout={card.buttonLayout} />
     </div>
   );
 }
@@ -76,6 +115,7 @@ function ListCardView({ card, onAction }: { card: ListCard; onAction: RendererPr
           onClick={() => {
             if (it.action === "message" && it.messageText) onAction(it.messageText);
             else if (it.action === "block" && it.blockId) onAction(it.title, { blockId: it.blockId, extra: it.extra });
+            else if (it.link?.web) window.open(it.link.web, "_blank");
           }}
         >
           {it.imageUrl && <img className="list-thumb" src={it.imageUrl} alt="" />}
@@ -154,6 +194,10 @@ function CarouselView({ carousel, onAction }: { carousel: Carousel; onAction: Re
         (carousel.items as ItemCard[]).map((c, i) => (
           <div className="carousel-cell" key={i}><ItemCardView card={c} onAction={onAction} /></div>
         ))}
+      {carousel.type === "commerceCard" &&
+        (carousel.items as CommerceCard[]).map((c, i) => (
+          <div className="carousel-cell" key={i}><CommerceCardView card={c} onAction={onAction} /></div>
+        ))}
     </div>
   );
 }
@@ -166,7 +210,9 @@ function OutputView({ output, onAction }: { output: Output; onAction: RendererPr
         <img src={output.simpleImage.imageUrl} alt={output.simpleImage.altText ?? ""} />
       </div>
     );
+  if ("textCard" in output) return <div className="bubble"><TextCardView card={output.textCard} onAction={onAction} /></div>;
   if ("basicCard" in output) return <div className="bubble"><BasicCardView card={output.basicCard} onAction={onAction} /></div>;
+  if ("commerceCard" in output) return <div className="bubble"><CommerceCardView card={output.commerceCard} onAction={onAction} /></div>;
   if ("listCard" in output) return <div className="bubble"><ListCardView card={output.listCard} onAction={onAction} /></div>;
   if ("itemCard" in output) return <div className="bubble"><ItemCardView card={output.itemCard} onAction={onAction} /></div>;
   if ("carousel" in output) return <div className="bubble wide"><CarouselView carousel={output.carousel} onAction={onAction} /></div>;
