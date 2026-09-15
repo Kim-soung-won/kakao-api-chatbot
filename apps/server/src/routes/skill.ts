@@ -21,10 +21,10 @@ export async function skillRoutes(app: FastifyInstance): Promise<void> {
       },
     },
     async (request) => {
-      const ctx = parseSkillContext(request.body);
-      const { block, response } = handleSkill(ctx);
+      const ctx = await parseSkillContext(request.body);
+      const { block, response } = await handleSkill(ctx);
       request.log.info(
-        { utterance: ctx.utterance, historyTurns: ctx.history.length, block },
+        { utterance: ctx.utterance, userId: ctx.userId, historyTurns: ctx.history.length, block },
         "skill dispatched",
       );
       return response;

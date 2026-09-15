@@ -6,8 +6,8 @@ import { messageQuickReply, simpleText } from "../../builders/outputs.js";
 /**
  * RAG 검색 블록 — RAG 백엔드 연동 전, **대화 이력 전송 파이프라인을 검증**하는 데모.
  *
- * 카카오 네이티브 `context`(채팅방 세션) 왕복으로 누적된 지금까지의 대화(ctx.history)를 그대로
- * 답변 말풍선에 그려, "RAG 서비스가 붙었을 때 전 대화 이력을 그 서버로 넘길 수 있는가"를
+ * botUserKey별 파일 저장소(captured-requests/history/)에 누적된 지금까지의 대화(ctx.history)를
+ * 그대로 답변 말풍선에 그려, "RAG 서비스가 붙었을 때 전 대화 이력을 그 서버로 넘길 수 있는가"를
  * 눈으로 확인한다. 실제 연동 시엔 이 자리에서 아래 `ragRequest`를 RAG 서버로 POST하면 된다.
  *
  * transient=true — 이 메타 명령 자체는 이력에 남기지 않는다(이력 오염 방지).
@@ -25,8 +25,9 @@ const RAG_QUICK_REPLIES = [
 ];
 
 /**
- * 진단 — 서버가 이번 요청에서 실제로 받은 contexts를 그대로 요약한다.
- * 카카오가 응답 context를 되돌려주는지(왕복) 실카톡에서 즉시 판별하기 위한 임시 계측.
+ * 진단 — 서버가 이번 요청에서 실제로 받은 contexts와 botUserKey를 요약한다.
+ * 파일 저장소 채택 근거(카카오 output context 왕복 미동작 + user.id 안정성)를 실카톡에서
+ * 언제든 재확인하기 위한 계측. 이력이 비었을 때만 노출한다.
  */
 function diagnoseIncoming(raw: unknown): string {
   const b = raw as
@@ -46,8 +47,8 @@ function diagnoseIncoming(raw: unknown): string {
     `· userRequest.contexts: ${nested ? `${nested.length}개` : "필드 없음"}\n` +
     `· 컨텍스트 이름: ${names.length ? names.join(", ") : "(없음)"}\n` +
     `· user.id: ${typeof uid === "string" && uid ? uid : "(없음)"}\n\n` +
-    `여기서 몇 턴을 주고받아도 'contexts: 0개/필드 없음'이면 → 카카오가 응답 context를 왕복하지 ` +
-    `않는 것(서버 저장소 필요). 이름에 chatHistory가 보이면 → 왕복은 되는데 다른 문제.`
+    `contexts가 계속 0/빈 값이면 카카오가 output context를 왕복하지 않는 것(→ 파일 저장소 사용). ` +
+    `user.id가 매턴 동일하면 이력 키로 안정적.`
   );
 }
 
@@ -84,7 +85,7 @@ export const ragSearch: SkillBlock = {
       };
     }
 
-    // 실제 RAG 서비스로 그대로 POST할 요청 페이로드(카카오 context 왕복으로 복원한 이력).
+    // 실제 RAG 서비스로 그대로 POST할 요청 페이로드(파일 저장소에서 로드한 전체 이력).
     const ragRequest = {
       turnCount: history.length,
       userTurns: history.filter((t) => t.role === "user").length,
@@ -97,7 +98,7 @@ export const ragSearch: SkillBlock = {
         outputs: [
           simpleText(
             `🔎 RAG 서버 전송 시뮬레이션\n` +
-              `카카오 context(채팅방 세션)에 누적된 대화 ${history.length}턴(사용자 ${ragRequest.userTurns}턴)을 RAG 서비스로 전송합니다.\n` +
+              `누적된 대화 ${history.length}턴(사용자 ${ragRequest.userTurns}턴)을 RAG 서비스로 전송합니다.\n` +
               `RAG 백엔드가 붙으면 아래 대화 이력이 그대로 그 서버로 POST됩니다.`,
           ),
           simpleText(transcript(history)),
