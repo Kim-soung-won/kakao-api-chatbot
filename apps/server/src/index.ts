@@ -3,6 +3,15 @@ import fastifySwagger from "@fastify/swagger";
 import fastifySwaggerUi from "@fastify/swagger-ui";
 import { skillRoutes } from "./routes/skill.js";
 import { echoRoutes } from "./routes/echo.js";
+import { callbackSinkRoutes } from "./routes/callback-sink.js";
+import { A2A_MOCK_ENABLED } from "./a2a/config.js";
+
+// 목업 A2A 서비스(MSW) 가동 — 실제 A2A/RAG 백엔드가 붙기 전 SSE 연동 파이프라인 검증용.
+// 실제 서버를 붙이면 A2A_MOCK=0으로 끈다. msw는 동적 import(프로덕션 번들에서 분리).
+if (A2A_MOCK_ENABLED) {
+  const { startA2aMock } = await import("./a2a/mock.js");
+  startA2aMock();
+}
 
 // 개발에서만 pino-pretty(devDependency) 사용. 프로덕션(컨테이너)에서는 기본 JSON 로깅.
 const isDev = process.env["NODE_ENV"] !== "production";
@@ -49,6 +58,7 @@ app.get(
 
 await app.register(skillRoutes);
 await app.register(echoRoutes);
+await app.register(callbackSinkRoutes);
 
 const port = Number(process.env["PORT"] ?? 3000);
 

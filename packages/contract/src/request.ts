@@ -48,6 +48,12 @@ export interface UserRequest {
   block?: { id?: string; name?: string };
   lang?: string;
   params?: Record<string, unknown>;
+  /**
+   * 콜백 사용(useCallback) 스킬에서 카카오가 실어 보내는 **콜백 URL**.
+   * 5초 초과 처리(LLM·RAG·A2A) 시, 즉시 `useCallback:true` 확인 응답만 보내고 최종 SkillResponse를
+   * 이 URL로 POST한다. 유효 1분·1회. ⚠️ AI 챗봇 전환 + 스킬 콜백 활성화 시에만 실려온다(실측 대상).
+   */
+  callbackUrl?: string;
 }
 
 export interface BotRef {

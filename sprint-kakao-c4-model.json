@@ -256,6 +256,10 @@
         {
           "targetId": "comp-history",
           "label": "이력 로드/적재"
+        },
+        {
+          "targetId": "comp-a2a",
+          "label": "콜백 블록(의료) 처리"
         }
       ]
     },
@@ -368,6 +372,26 @@
         {
           "targetId": "cont-captured",
           "label": "이력 파일 read/write"
+        }
+      ]
+    },
+    {
+      "id": "comp-a2a",
+      "name": "A2A 연동 (client·mock)",
+      "type": "component",
+      "systemId": "sys-kakao-skill",
+      "containerId": "cont-server",
+      "technology": "typescript",
+      "description": "외부 A2A/RAG 에이전트를 SSE로 호출해 최종 답변을 수신(client.ts). 실제 백엔드 전까지 MSW 목업(mock.ts, 30초 SSE)으로 대체. \"의료\" welfare 키가 이 경로를 사용하며, 5초 초과라 카카오 콜백(useCallback)으로 최종 응답을 callbackUrl에 POST.",
+      "position": {
+        "x": 700,
+        "y": 150
+      },
+      "connections": [
+        {
+          "targetId": "sys-rag",
+          "label": "질문 POST → SSE 스트림 수신 (실연동)",
+          "technology": "http/sse"
         }
       ]
     }
@@ -580,6 +604,22 @@
         "relatedIds": [
           "comp-history",
           "cont-captured",
+          "comp-skill-route",
+          "sys-rag"
+        ],
+        "decidedBy": "개발자"
+      },
+      {
+        "id": "d11",
+        "topic": "느린 외부 응답(A2A/RAG)은 카카오 콜백으로",
+        "choice": "5초를 넘는 A2A/RAG 처리는 useCallback으로 즉시 대기응답 후 callbackUrl로 최종 POST. SSE는 서버에서 소비해 완성 텍스트로 1회 전송(카톡 실시간 스트리밍 미지원). 실제 백엔드 전까지 MSW로 30초 SSE 목업.",
+        "why": "카카오 스킬 응답 제한이 5초라 LLM/RAG/A2A를 동기로 못 받는다. 콜백이 유일한 우회로(유효 1분·1회). 카톡 말풍선은 토큰 스트리밍을 지원하지 않으므로 SSE는 서버가 끝까지 모아 최종본만 보낸다. 목업(MSW)으로 파이프라인을 백엔드 없이 검증.",
+        "rejected": [
+          "동기 응답(5초 초과로 불가)",
+          "토큰 실시간 스트리밍(카카오 미지원)"
+        ],
+        "relatedIds": [
+          "comp-a2a",
           "comp-skill-route",
           "sys-rag"
         ],

@@ -1,5 +1,5 @@
 import type { SkillPayload, SkillResponse } from "@sprint-kakao/contract";
-import type { SkillContext } from "./types.js";
+import type { SkillBlock, SkillContext } from "./types.js";
 import { blocks, fallback } from "./blocks/index.js";
 import { appendTurns, summarizeResponse } from "./history.js";
 import { loadHistory, saveHistory } from "./history-store.js";
@@ -21,36 +21,49 @@ function extractUserId(body: unknown): string {
 export async function parseSkillContext(body: unknown): Promise<SkillContext> {
   const b = body as Partial<SkillPayload> | undefined;
   const userId = extractUserId(body);
+  const callbackUrl = b?.userRequest?.callbackUrl;
   return {
     utterance: (b?.userRequest?.utterance ?? "").trim(),
     userId,
     history: await loadHistory(userId),
+    callbackUrl: typeof callbackUrl === "string" && callbackUrl ? callbackUrl : undefined,
     raw: body,
   };
 }
 
+/** 발화에 매칭되는 블록을 고른다. 아무 것도 안 맞으면 폴백. */
+export function selectBlock(ctx: SkillContext): SkillBlock {
+  return blocks.find((b) => b.match(ctx)) ?? fallback;
+}
+
 /**
- * 발화를 매칭되는 블록으로 디스패치한다. 아무 블록도 안 맞으면 폴백.
- * 어떤 블록이 응답했는지(name)도 함께 반환해 로깅에 쓴다.
- *
- * 디스패치 후, 이번 턴(사용자 발화 + 봇 응답 요약)을 이력에 덧붙여 파일 저장소에 적재한다.
- * transient 블록("RAG 검색" 등 메타 명령)과 빈 발화는 이력에 남기지 않는다.
+ * 이번 턴(사용자 발화 + 봇 응답 요약)을 이력에 덧붙여 파일 저장소에 적재한다.
+ * transient 블록("RAG 검색" 등)과 빈 발화는 남기지 않는다. (콜백 최종 응답도 이걸로 기록.)
+ */
+export async function recordTurn(
+  ctx: SkillContext,
+  block: SkillBlock,
+  response: SkillResponse,
+): Promise<void> {
+  if (block.transient || !ctx.utterance) return;
+  const nextHistory = appendTurns(
+    ctx.history,
+    { role: "user", text: ctx.utterance },
+    { role: "bot", text: summarizeResponse(response) },
+  );
+  await saveHistory(ctx.userId, nextHistory);
+}
+
+/**
+ * 동기(5초 이내) 디스패치. 매칭 블록의 respond 결과를 반환하고 이번 턴을 이력에 적재한다.
+ * (콜백 블록의 비동기 경로는 라우트에서 별도 처리 — routes/skill.ts.)
  */
 export async function handleSkill(ctx: SkillContext): Promise<{
   block: string;
   response: SkillResponse;
 }> {
-  const block = blocks.find((b) => b.match(ctx)) ?? fallback;
+  const block = selectBlock(ctx);
   const response = block.respond(ctx);
-
-  if (!block.transient && ctx.utterance) {
-    const nextHistory = appendTurns(
-      ctx.history,
-      { role: "user", text: ctx.utterance },
-      { role: "bot", text: summarizeResponse(response) },
-    );
-    await saveHistory(ctx.userId, nextHistory);
-  }
-
+  await recordTurn(ctx, block, response);
   return { block: block.name, response };
 }

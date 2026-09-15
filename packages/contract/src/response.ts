@@ -334,3 +334,14 @@ export interface SkillResponse {
   context?: Context;
   data?: Record<string, unknown>;
 }
+
+/**
+ * 콜백 사용 시 **즉시 반환하는 확인(ack) 응답**. `template` 대신 `useCallback: true`를 담고,
+ * `data.text`가 대기 메시지로 노출된다. 최종 답변은 이후 `userRequest.callbackUrl`로 별도 POST한다.
+ * (5초 초과 처리 — LLM·RAG·A2A 연동 시. AI 챗봇 전환 + 스킬 콜백 활성화 필요.)
+ */
+export interface SkillCallbackAck {
+  version: "2.0";
+  useCallback: true;
+  data?: { text?: string };
+}
