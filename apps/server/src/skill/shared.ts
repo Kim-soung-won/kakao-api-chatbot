@@ -11,6 +11,7 @@ export const NAV_QUICK_REPLIES = [
   messageQuickReply("한국어교육", "한국어교육"),
   messageQuickReply("취업지원", "취업"),
   messageQuickReply("신청 절차", "신청 절차"),
+  messageQuickReply("RAG 검색", "RAG 검색"),
 ];
 
 /** outputs를 복지 네비 바로가기와 함께 SkillResponse로 감싼다. */
