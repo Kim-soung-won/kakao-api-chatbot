@@ -2,6 +2,7 @@ import { useState } from "react";
 import type { SkillPayload, SkillResponse } from "@sprint-kakao/contract";
 import { KakaoRenderer } from "./renderer/KakaoRenderer.js";
 import { validate, type Warning } from "./renderer/validate.js";
+import { MessageBuilder } from "./builder/MessageBuilder.js";
 
 interface Turn {
   utterance: string;
@@ -29,7 +30,8 @@ async function callSkill(utterance: string, meta?: Record<string, unknown>): Pro
   return (await res.json()) as SkillResponse;
 }
 
-export function App() {
+/** 좌측 패널: 챗봇 스킬 응답 렌더러 + 발화 시뮬레이터. */
+function ChatPane() {
   const [turns, setTurns] = useState<Turn[]>([]);
   const [input, setInput] = useState("");
   const [showJson, setShowJson] = useState(false);
@@ -50,9 +52,9 @@ export function App() {
   }
 
   return (
-    <div className="app">
-      <header className="topbar">
-        <strong>카카오 스킬 렌더러 플레이그라운드</strong>
+    <aside className="pane-chat">
+      <header className="pane-head">
+        <strong>챗봇 렌더러 <span className="pane-sub">스킬 응답 · /skill</span></strong>
         <label className="json-toggle">
           <input type="checkbox" checked={showJson} onChange={(e) => setShowJson(e.target.checked)} /> 원문 JSON
         </label>
@@ -60,7 +62,7 @@ export function App() {
 
       <div className="chat">
         {turns.length === 0 && (
-          <div className="hint">'카드' 또는 '리스트'를 입력해 데모 응답을 렌더링해보세요. (서버: apps/server 실행 필요)</div>
+          <div className="hint">'카드' · '리스트' · '캐러셀' · '복지도우미' · '위반' 등을 입력해 데모 응답을 렌더링해보세요.</div>
         )}
         {turns.map((turn, i) => (
           <div key={i} className="turn">
@@ -98,10 +100,31 @@ export function App() {
           className="composer-input"
           value={input}
           onChange={(e) => setInput(e.target.value)}
-          placeholder="발화 입력 (예: 카드, 리스트)"
+          placeholder="발화 입력 (예: 카드, 복지도우미)"
         />
         <button className="composer-send" type="submit">전송</button>
       </form>
+    </aside>
+  );
+}
+
+/** 우측 패널: 추가 도구(메시지 카드 빌더 등). */
+function ToolsPane() {
+  return (
+    <main className="pane-tools">
+      <header className="pane-head">
+        <strong>메시지 카드 빌더 <span className="pane-sub">발송용 · 메시지 API</span></strong>
+      </header>
+      <MessageBuilder />
+    </main>
+  );
+}
+
+export function App() {
+  return (
+    <div className="app">
+      <ChatPane />
+      <ToolsPane />
     </div>
   );
 }
