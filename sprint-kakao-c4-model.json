@@ -157,7 +157,7 @@
       "type": "container",
       "systemId": "sys-kakao-skill",
       "technology": "typescript",
-      "description": "Fastify(ESM) 기반 스킬 서버. POST /skill(발화→mock SkillResponse), POST /echo(실제 요청 원문 캡처), GET /health. 개인 카카오 키는 .env(dotenv)로 로드. :3000.",
+      "description": "Fastify(ESM) 기반 스킬 서버. POST /skill(발화→블록 디스패치→SkillResponse, 매 턴 대화 이력을 botUserKey별로 적재하고 \"RAG 검색\" 시 누적 이력을 RAG 전송 페이로드로 렌더), POST /echo(실제 요청 원문 캡처), GET /health. 개인 카카오 키는 .env로 로드. :3000.",
       "position": {
         "x": 400,
         "y": 100
@@ -173,7 +173,15 @@
         },
         {
           "targetId": "cont-captured",
-          "label": "요청 원문 JSON 기록"
+          "label": "/echo 원문 기록 + 대화 이력(history/) read·write",
+          "technology": "file",
+          "description": "카카오 output context 왕복이 실측상 미동작이라, 대화 이력을 botUserKey별 JSON 파일로 적재. /echo 원문 캡처와 같은 볼륨."
+        },
+        {
+          "targetId": "sys-rag",
+          "label": "대화 이력(ragRequest) POST — 다음 단계",
+          "technology": "http",
+          "description": "RAG 백엔드 연동 시 누적 대화 이력을 검색 요청으로 전송하고 응답을 SkillResponse로 변환. 현재는 \"RAG 검색\" 블록이 이 페이로드(data.ragRequest)를 시뮬레이션."
         }
       ]
     },
