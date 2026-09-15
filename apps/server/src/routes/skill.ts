@@ -1,6 +1,5 @@
 import type { FastifyInstance } from "fastify";
-import type { SkillPayload } from "@sprint-kakao/contract";
-import { buildDemoResponse } from "../builders/demo.js";
+import { handleSkill, parseSkillContext } from "../skill/index.js";
 import { skillPayloadSchema, skillResponseSchema } from "../schemas.js";
 
 /**
@@ -22,10 +21,10 @@ export async function skillRoutes(app: FastifyInstance): Promise<void> {
       },
     },
     async (request) => {
-    // request.ts는 아직 HYPOTHESIS — 방어적으로 파싱한다.
-    const body = request.body as Partial<SkillPayload> | undefined;
-    const utterance = body?.userRequest?.utterance ?? "";
-    request.log.info({ utterance }, "skill invoked");
-    return buildDemoResponse(utterance);
-  });
+      const ctx = parseSkillContext(request.body);
+      const { block, response } = handleSkill(ctx);
+      request.log.info({ utterance: ctx.utterance, block }, "skill dispatched");
+      return response;
+    },
+  );
 }
