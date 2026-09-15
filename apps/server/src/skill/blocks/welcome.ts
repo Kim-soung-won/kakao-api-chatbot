@@ -6,10 +6,13 @@ const HERO_WELCOME = "https://placehold.co/640x420/1b4db5/ffffff/png?text=Gangse
 /**
  * 웰컴 블록 — 첫 인사·소개 카드. (오픈빌더 웰컴 블록에 대응)
  * "맞춤 복지 안내 시작하기" 버튼이 온보딩 시나리오로 진입시킨다.
+ *
+ * 웰컴 블록이 스킬을 호출할 때는 사용자 발화가 없으므로(빈 문자열),
+ * 빈 발화도 웰컴 진입으로 보고 이 카드를 반환한다.
  */
 export const welcome: SkillBlock = {
   name: "welcome",
-  match: (ctx) => /도우미|환영|강서구/.test(ctx.utterance),
+  match: (ctx) => ctx.utterance === "" || /도우미|환영|강서구/.test(ctx.utterance),
   respond: () => ({
     version: "2.0",
     template: {
