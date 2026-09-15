@@ -3,7 +3,6 @@ import { messageQuickReply } from "../builders/outputs.js";
 
 /** 데모 탐색용 공통 바로가기(footer). */
 export const DEMO_QUICK_REPLIES = [
-  messageQuickReply("🏛️복지도우미", "복지도우미"),
   messageQuickReply("맞춤안내 시작", "맞춤복지"),
   messageQuickReply("복지카드", "복지"),
   messageQuickReply("카드", "카드"),

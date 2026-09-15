@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import type { SkillPayload, SkillResponse } from "@sprint-kakao/contract";
 import { KakaoRenderer } from "./renderer/KakaoRenderer.js";
 import { validate, type Warning } from "./renderer/validate.js";
@@ -38,20 +38,8 @@ function ChatPane() {
   const [input, setInput] = useState("");
   const [showJson, setShowJson] = useState(false);
 
-  // 채팅방 진입 시 웰컴(빈 발화)을 자동 호출 — 실제 채널의 웰컴 블록처럼.
-  const didWelcome = useRef(false);
-  useEffect(() => {
-    if (didWelcome.current) return;
-    didWelcome.current = true;
-    void (async () => {
-      try {
-        const response = await callSkill("");
-        setTurns([{ response, warnings: validate(response) }]);
-      } catch {
-        /* 서버 미기동 시 무시 (hint가 대신 표시됨) */
-      }
-    })();
-  }, []);
+  // 진입 웰컴은 챗봇(스킬)이 아니라 채널 친구추가 메시지(채널 레이어)가 담당한다.
+  // (카카오 웰컴 블록은 진입 시 스킬 자동호출이 안 됨 — docs/blocks.md 참고)
 
   async function send(utterance: string, meta?: Record<string, unknown>) {
     const u = utterance.trim();
