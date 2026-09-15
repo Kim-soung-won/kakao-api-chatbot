@@ -4,9 +4,9 @@
  * 권위 문서: `.claude/skills/kakao-skill-response_domain/SKILL.md`
  * (출처: 카카오 비즈니스 Chatbot Skill Guide — Answer JSON Format)
  *
- * 구현된 출력 컴포넌트 —
- *   simpleText · simpleImage · basicCard · listCard · itemCard · carousel · buttons · quickReplies · context
- * 미구현(추후 확장): textCard · commerceCard  → {@link DEFERRED_OUTPUTS}
+ * 구현된 출력 컴포넌트 (카카오 스킬 응답 8종 전부) —
+ *   simpleText · simpleImage · textCard · basicCard · commerceCard · listCard · itemCard · carousel
+ *   + buttons · quickReplies · context
  */
 
 // ─────────────────────────────────────────────────────────────
@@ -36,8 +36,13 @@ export const TEXT_LIMITS = {
   /** 500자 초과 시 "전체 보기" 버튼 자동 노출. */
   simpleTextFoldThreshold: 500,
   simpleImageAltText: 50,
+  textCardTitle: 50,
+  textCardDescription: 400,
+  textCardDescriptionInCarousel: 128,
   basicCardTitle: 50,
   basicCardDescription: 230,
+  commerceCardTitle: 30,
+  commerceCardDescription: 40,
   buttonLabel: 14,
   buttonLabelHorizontal: 8,
 } as const;
@@ -46,8 +51,8 @@ export const TEXT_LIMITS = {
 export const MAX_ITEMCARD_ROWS = 10;
 export const MAX_ITEMCARD_ROWS_IN_CAROUSEL = 5;
 
-/** 아직 타입화하지 않은 출력 컴포넌트(추후 확장 대상). */
-export const DEFERRED_OUTPUTS = ["textCard", "commerceCard"] as const;
+/** 카카오 스킬 응답 8종 전부 타입화 완료. */
+export const DEFERRED_OUTPUTS = [] as const;
 
 // ─────────────────────────────────────────────────────────────
 // 공통 요소
@@ -143,6 +148,16 @@ export interface SimpleImage {
   altText?: string;
 }
 
+/** 3. 텍스트 카드: 텍스트 + 버튼. title/description 중 최소 하나 필수. */
+export interface TextCard {
+  /** title ≤ 50자. */
+  title?: string;
+  /** description ≤ 400자(캐러셀 내부 128자). */
+  description?: string;
+  buttons?: Button[];
+  buttonLayout?: ButtonLayout;
+}
+
 /** 4. 기본 카드: 이미지 + 제목 + 설명 + 버튼. (가장 범용) */
 export interface BasicCard {
   /** title ≤ 50자. title/description/thumbnail 중 최소 하나는 있어야 유의미. */
@@ -150,6 +165,42 @@ export interface BasicCard {
   /** description ≤ 230자. */
   description?: string;
   thumbnail?: Thumbnail;
+  buttons?: Button[];
+  buttonLayout?: ButtonLayout;
+}
+
+/** commerceCard 썸네일. */
+export interface CommerceThumbnail {
+  imageUrl: string;
+  link?: Link;
+}
+
+/** 판매자 프로필. */
+export interface CommerceProfile {
+  imageUrl?: string;
+  nickname: string;
+}
+
+/**
+ * 5. 커머스 카드: 가격 정보를 포함한 상품 카드.
+ * 가격 노출 불변조건:
+ *  - `discountedPrice`가 있으면 다른 할인 정보 무시하고 이 값만 노출
+ *  - `discountRate`는 `discountedPrice`가 함께 있어야 유효
+ *  - 둘 다 있으면 `discountRate` 우선
+ */
+export interface CommerceCard {
+  /** title ≤ 30자. */
+  title?: string;
+  /** description ≤ 40자. */
+  description?: string;
+  price: number;
+  /** 예: "won". */
+  currency?: string;
+  discount?: number;
+  discountRate?: number;
+  discountedPrice?: number;
+  thumbnails: CommerceThumbnail[];
+  profile?: CommerceProfile;
   buttons?: Button[];
   buttonLayout?: ButtonLayout;
 }
@@ -206,8 +257,8 @@ export interface ItemCard {
   buttonLayout?: ButtonLayout;
 }
 
-/** 캐러셀에 담을 수 있는(핵심 범위) 카드 종류. */
-export type CarouselItemType = "basicCard" | "listCard" | "itemCard";
+/** 캐러셀에 담을 수 있는 카드 종류. */
+export type CarouselItemType = "basicCard" | "listCard" | "itemCard" | "commerceCard";
 
 /**
  * 8. 캐러셀: 카드 가로 스크롤.
@@ -220,8 +271,8 @@ export interface Carousel {
     description?: string;
     thumbnail?: { imageUrl: string };
   };
-  /** type에 따라 BasicCard[] | ListCard[] | ItemCard[]. */
-  items: BasicCard[] | ListCard[] | ItemCard[];
+  /** type에 따라 BasicCard[] | ListCard[] | ItemCard[] | CommerceCard[]. */
+  items: BasicCard[] | ListCard[] | ItemCard[] | CommerceCard[];
 }
 
 /**
@@ -231,7 +282,9 @@ export interface Carousel {
 export type Output =
   | { simpleText: SimpleText }
   | { simpleImage: SimpleImage }
+  | { textCard: TextCard }
   | { basicCard: BasicCard }
+  | { commerceCard: CommerceCard }
   | { listCard: ListCard }
   | { itemCard: ItemCard }
   | { carousel: Carousel };

@@ -7,6 +7,7 @@ import type {
   BasicCard,
   Button,
   Carousel,
+  CommerceCard,
   ItemCard,
   ListCard,
   ListItem,
@@ -14,6 +15,7 @@ import type {
   QuickReply,
   SimpleImage,
   SimpleText,
+  TextCard,
 } from "@sprint-kakao/contract";
 
 export const simpleText = (text: string): Output => ({
@@ -24,7 +26,11 @@ export const simpleImage = (imageUrl: string, altText?: string): Output => ({
   simpleImage: { imageUrl, altText } satisfies SimpleImage,
 });
 
+export const textCard = (card: TextCard): Output => ({ textCard: card });
+
 export const basicCard = (card: BasicCard): Output => ({ basicCard: card });
+
+export const commerceCard = (card: CommerceCard): Output => ({ commerceCard: card });
 
 export const listCard = (
   headerTitle: string,

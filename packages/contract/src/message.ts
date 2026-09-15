@@ -17,10 +17,13 @@ export const MESSAGE_LIMITS = {
   /** list 템플릿 contents 최소/최대 개수. */
   listContentsMin: 2,
   listContentsMax: 3,
+  /** carousel 템플릿 items 최소/최대 개수. */
+  carouselItemsMin: 2,
+  carouselItemsMax: 6,
 } as const;
 
-/** 아직 타입화하지 않은 템플릿(추후 확장). */
-export const DEFERRED_MESSAGE_TEMPLATES = ["carousel"] as const;
+/** 아직 타입화하지 않은 템플릿(추후 확장). carousel commerce 타입 등. */
+export const DEFERRED_MESSAGE_TEMPLATES = ["carousel-commerce"] as const;
 
 /** 기기별 링크. 최소 하나(web_url 등)는 있어야 유효. */
 export interface MessageLink {
@@ -132,11 +135,37 @@ export interface CalendarTemplate {
   buttons?: MsgButton[];
 }
 
+/** Feed 캐러셀의 개별 카드. */
+export interface CarouselFeedItem {
+  title: string;
+  description?: string;
+  image_url?: string;
+  link?: MessageLink;
+  /** 카드별 버튼, 최대 2개. */
+  buttons?: MsgButton[];
+}
+
+/** 캐러셀 하단 공통 이동 버튼(선택). */
+export interface CarouselTail {
+  link: MessageLink;
+}
+
+/** Carousel(feed) 템플릿: 카드 2~6개 가로 스크롤 + 선택적 tail. */
+export interface CarouselTemplate {
+  object_type: "carousel";
+  /** 현재 feed만 지원(commerce는 추후). */
+  type: "feed";
+  /** 2~6개. @see MESSAGE_LIMITS.carouselItemsMin/Max */
+  items: CarouselFeedItem[];
+  tail?: CarouselTail;
+}
+
 export type MessageTemplate =
   | FeedTemplate
   | TextTemplate
   | ListTemplate
   | CommerceTemplate
   | LocationTemplate
-  | CalendarTemplate;
+  | CalendarTemplate
+  | CarouselTemplate;
 export type MessageObjectType = MessageTemplate["object_type"];
