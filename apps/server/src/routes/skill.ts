@@ -21,6 +21,11 @@ export async function skillRoutes(app: FastifyInstance): Promise<void> {
       },
     },
     async (request) => {
+      // 실카톡이 실제로 보내는 요청 원문(헤더·바디)을 WAS 콘솔에 그대로 찍는다.
+      // 요청 계약(SkillPayload)이 아직 가설이라, 실측으로 필드를 눈으로 확인하기 위함.
+      console.log("[/skill] headers:", JSON.stringify(request.headers, null, 2));
+      console.log("[/skill] body:", JSON.stringify(request.body, null, 2));
+
       const ctx = await parseSkillContext(request.body);
       const { block, response } = await handleSkill(ctx);
       request.log.info(
