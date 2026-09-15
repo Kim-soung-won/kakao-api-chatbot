@@ -335,6 +335,14 @@
         "rejected": ["나에게 보내기(memo) API — 개인용이라 채널 목적과 무관"],
         "relatedIds": ["comp-msg-builder", "sys-kakao-api", "act-user"],
         "decidedBy": "개발자"
+      },
+      {
+        "id": "d8",
+        "topic": "챗봇·친구톡 두 축 범위",
+        "choice": "프로젝트는 채널을 챗봇(인바운드 응답)과 친구톡(아웃바운드 push) 두 축으로 활용한다. 두 축은 독립이며, sys-kakao-api(메시지 API) 노드와 그 엣지는 오직 친구톡 축 전용이다.",
+        "why": "챗봇 응답은 API 발송이 아니라 웹훅 요청에 대한 HTTP 응답(SkillResponse) return이라 아웃바운드 메시지 API가 개입하지 않는다. 챗봇만 보면 sys-kakao-api는 불필요하나, 친구톡 축을 위해 모델에 유지한다.",
+        "relatedIds": ["sys-kakao-platform", "cont-server", "sys-kakao-api"],
+        "decidedBy": "개발자"
       }
     ],
     "openQuestions": [
