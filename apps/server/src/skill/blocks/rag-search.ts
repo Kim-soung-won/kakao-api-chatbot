@@ -24,6 +24,33 @@ const RAG_QUICK_REPLIES = [
   messageQuickReply("RAG 검색", "RAG 검색"),
 ];
 
+/**
+ * 진단 — 서버가 이번 요청에서 실제로 받은 contexts를 그대로 요약한다.
+ * 카카오가 응답 context를 되돌려주는지(왕복) 실카톡에서 즉시 판별하기 위한 임시 계측.
+ */
+function diagnoseIncoming(raw: unknown): string {
+  const b = raw as
+    | { contexts?: unknown; userRequest?: { contexts?: unknown; user?: { id?: unknown } } }
+    | undefined;
+  const top = Array.isArray(b?.contexts) ? (b!.contexts as unknown[]) : null;
+  const nested = Array.isArray(b?.userRequest?.contexts)
+    ? (b!.userRequest!.contexts as unknown[])
+    : null;
+  const names = [...(top ?? []), ...(nested ?? [])]
+    .map((c) => (c as { name?: unknown } | null)?.name)
+    .filter((n): n is string => typeof n === "string");
+  const uid = b?.userRequest?.user?.id;
+  return (
+    `🩺 수신 진단\n` +
+    `· 최상위 contexts: ${top ? `${top.length}개` : "필드 없음"}\n` +
+    `· userRequest.contexts: ${nested ? `${nested.length}개` : "필드 없음"}\n` +
+    `· 컨텍스트 이름: ${names.length ? names.join(", ") : "(없음)"}\n` +
+    `· user.id: ${typeof uid === "string" && uid ? uid : "(없음)"}\n\n` +
+    `여기서 몇 턴을 주고받아도 'contexts: 0개/필드 없음'이면 → 카카오가 응답 context를 왕복하지 ` +
+    `않는 것(서버 저장소 필요). 이름에 chatHistory가 보이면 → 왕복은 되는데 다른 문제.`
+  );
+}
+
 /** 이력을 사람이 읽을 대화록으로. simpleText 한도(1000자)를 넘으면 앞부분을 자른다. */
 function transcript(history: HistoryTurn[]): string {
   const body = history
@@ -50,6 +77,7 @@ export const ragSearch: SkillBlock = {
               "아직 RAG 서버로 보낼 대화 이력이 없어요.\n" +
                 "먼저 몇 마디 주고받은 뒤 다시 'RAG 검색'을 입력하면, 지금까지의 대화를 그대로 보여드려요.",
             ),
+            simpleText(diagnoseIncoming(ctx.raw)),
           ],
           quickReplies: RAG_QUICK_REPLIES,
         },
