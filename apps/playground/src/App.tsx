@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { SkillPayload, SkillResponse } from "@sprint-kakao/contract";
 import { KakaoRenderer } from "./renderer/KakaoRenderer.js";
 import { validate, type Warning } from "./renderer/validate.js";
@@ -6,7 +6,8 @@ import { MessageBuilder } from "./builder/MessageBuilder.js";
 import { FriendTalkBuilder } from "./builder/FriendTalkBuilder.js";
 
 interface Turn {
-  utterance: string;
+  /** 사용자 발화. 웰컴(자동 진입) 턴은 발화가 없다. */
+  utterance?: string;
   meta?: Record<string, unknown>;
   response?: SkillResponse;
   warnings?: Warning[];
@@ -36,6 +37,21 @@ function ChatPane() {
   const [turns, setTurns] = useState<Turn[]>([]);
   const [input, setInput] = useState("");
   const [showJson, setShowJson] = useState(false);
+
+  // 채팅방 진입 시 웰컴(빈 발화)을 자동 호출 — 실제 채널의 웰컴 블록처럼.
+  const didWelcome = useRef(false);
+  useEffect(() => {
+    if (didWelcome.current) return;
+    didWelcome.current = true;
+    void (async () => {
+      try {
+        const response = await callSkill("");
+        setTurns([{ response, warnings: validate(response) }]);
+      } catch {
+        /* 서버 미기동 시 무시 (hint가 대신 표시됨) */
+      }
+    })();
+  }, []);
 
   async function send(utterance: string, meta?: Record<string, unknown>) {
     const u = utterance.trim();
@@ -67,10 +83,12 @@ function ChatPane() {
         )}
         {turns.map((turn, i) => (
           <div key={i} className="turn">
-            <div className="user-bubble">
-              {turn.utterance}
-              {turn.meta?.["extra"] ? <span className="extra-tag">extra</span> : null}
-            </div>
+            {turn.utterance !== undefined && (
+              <div className="user-bubble">
+                {turn.utterance}
+                {turn.meta?.["extra"] ? <span className="extra-tag">extra</span> : null}
+              </div>
+            )}
             {turn.error && <div className="bot-turn"><div className="bubble text err">요청 실패: {turn.error}</div></div>}
             {turn.response && <KakaoRenderer response={turn.response} onAction={send} />}
             {turn.warnings && turn.warnings.length > 0 && (
