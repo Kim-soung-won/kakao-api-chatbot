@@ -6,8 +6,8 @@ import { messageQuickReply, simpleText } from "../../builders/outputs.js";
 /**
  * RAG 검색 블록 — RAG 백엔드 연동 전, **대화 이력 전송 파이프라인을 검증**하는 데모.
  *
- * 카카오 네이티브 `context` 왕복으로 누적된 지금까지의 대화(ctx.history)를 그대로
- * 답변 말풍선에 그려, "RAG 서비스가 붙었을 때 전 대화 이력을 그 서버로 넘길 수 있는가"를
+ * botUserKey별 파일 저장소(captured-requests/history/)에 누적된 지금까지의 대화(ctx.history)를
+ * 그대로 답변 말풍선에 그려, "RAG 서비스가 붙었을 때 전 대화 이력을 그 서버로 넘길 수 있는가"를
  * 눈으로 확인한다. 실제 연동 시엔 이 자리에서 아래 `ragRequest`를 RAG 서버로 POST하면 된다.
  *
  * transient=true — 이 메타 명령 자체는 이력에 남기지 않는다(이력 오염 방지).
@@ -56,7 +56,7 @@ export const ragSearch: SkillBlock = {
       };
     }
 
-    // 실제 RAG 서비스로 그대로 POST할 요청 페이로드(카카오 context 왕복으로 복원한 전체 이력).
+    // 실제 RAG 서비스로 그대로 POST할 요청 페이로드(파일 저장소에서 로드한 전체 이력).
     const ragRequest = {
       turnCount: history.length,
       userTurns: history.filter((t) => t.role === "user").length,
@@ -69,7 +69,7 @@ export const ragSearch: SkillBlock = {
         outputs: [
           simpleText(
             `🔎 RAG 서버 전송 시뮬레이션\n` +
-              `카카오 context에 누적된 대화 ${history.length}턴(사용자 ${ragRequest.userTurns}턴)을 RAG 서비스로 전송합니다.\n` +
+              `누적된 대화 ${history.length}턴(사용자 ${ragRequest.userTurns}턴)을 RAG 서비스로 전송합니다.\n` +
               `RAG 백엔드가 붙으면 아래 대화 이력이 그대로 그 서버로 POST됩니다.`,
           ),
           simpleText(transcript(history)),

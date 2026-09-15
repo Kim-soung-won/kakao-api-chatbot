@@ -5,10 +5,11 @@ import type { HistoryTurn } from "./history.js";
 export interface SkillContext {
   /** 정규화된 사용자 발화. */
   utterance: string;
+  /** 발화자 식별키(botUserKey = userRequest.user.id). 이력 파일 저장소의 키. 없으면 "anonymous". */
+  userId: string;
   /**
-   * 이번 요청에 카카오 `contexts`로 실려온 이전 대화 이력(왕복 결과).
-   * 서버는 별도 저장소 없이, 카카오 네이티브 context 왕복만으로 이력을 이어받는다.
-   * (요청 계약이 가설이라 없거나 깨지면 빈 배열.)
+   * 이 사용자의 이전 대화 이력. 파일 저장소(history-store.ts)에서 이번 요청 시점에 로드한 값.
+   * (파일 없음/깨짐이면 빈 배열.)
    */
   history: HistoryTurn[];
   /** 원본 payload — 향후 user.id·contexts 활용 지점. */

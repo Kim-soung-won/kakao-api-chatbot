@@ -10,7 +10,10 @@
       "type": "system",
       "technology": "users",
       "description": "카카오톡 채널에서 발화하고 카드·버튼 응답을 받는 최종 사용자.",
-      "position": { "x": 0, "y": 0 },
+      "position": {
+        "x": 0,
+        "y": 0
+      },
       "connections": [
         {
           "targetId": "sys-kakao-platform",
@@ -31,7 +34,10 @@
       "type": "system",
       "technology": "cloud",
       "description": "외부 시스템. 채널로 들어온 발화를 블록/스킬로 라우팅하고, 우리 스킬 서버를 웹훅으로 호출하며, 돌려받은 SkillResponse를 채팅창에 렌더링한다.",
-      "position": { "x": 400, "y": 0 },
+      "position": {
+        "x": 400,
+        "y": 0
+      },
       "connections": [
         {
           "targetId": "sys-kakao-skill",
@@ -48,7 +54,10 @@
       "type": "system",
       "technology": "users",
       "description": "플레이그라운드로 응답 UX·제약을 로컬에서 테스트하고 서버를 운영하는 개발자.",
-      "position": { "x": 400, "y": 350 },
+      "position": {
+        "x": 400,
+        "y": 350
+      },
       "connections": [
         {
           "targetId": "sys-kakao-skill",
@@ -63,7 +72,10 @@
       "type": "system",
       "technology": "server",
       "description": "카카오 챗봇에 붙는 스킬 서버 + 로컬 렌더링 테스트 하니스. 요청/응답 인터페이스를 앱 레벨 타입으로 고정하고, 향후 RAG 응답을 SkillResponse로 변환하는 것이 목표.",
-      "position": { "x": 800, "y": 120 },
+      "position": {
+        "x": 800,
+        "y": 120
+      },
       "connections": [
         {
           "targetId": "sys-rag",
@@ -84,7 +96,10 @@
       "type": "system",
       "technology": "python",
       "description": "외부/예정. 검색 기반 답변을 생성해 스킬 서버에 제공할 백엔드. Python 계열(FastAPI/LangChain 등) 예정, 아직 미연동.",
-      "position": { "x": 1200, "y": 0 },
+      "position": {
+        "x": 1200,
+        "y": 0
+      },
       "connections": []
     },
     {
@@ -93,7 +108,10 @@
       "type": "system",
       "technology": "cloud",
       "description": "외부. 채널이 사용자에게 능동적으로(챗봇 응답과 별개) 메시지를 보내는 발송 API. 알림톡(정보성, 사전 승인 템플릿, 채널 친구가 아니어도 발송) / 친구톡(정보·광고성, 채널 친구에게만) — 비즈메시지 API(카카오 i 커넥트 메시지)로 발송. developers.kakao.com REST/Admin 키를 .env에 보관 중이나 현재 단계에서는 호출하지 않는다.",
-      "position": { "x": 1200, "y": 250 },
+      "position": {
+        "x": 1200,
+        "y": 250
+      },
       "connections": [
         {
           "targetId": "act-user",
@@ -112,8 +130,14 @@
       "systemId": "sys-kakao-skill",
       "technology": "react",
       "description": "카카오톡 채팅창을 흉내내는 렌더러 + 요청 시뮬레이터. SkillResponse를 카드/버튼/캐러셀로 그리고, contract 상수로 렌더링 제약 위반을 런타임 경고로 검증. React + Vite, :5173.",
-      "position": { "x": 0, "y": 100 },
-      "healthCheck": { "url": "http://localhost:5173/", "verified": false },
+      "position": {
+        "x": 0,
+        "y": 100
+      },
+      "healthCheck": {
+        "url": "http://localhost:5173/",
+        "verified": false
+      },
       "connections": [
         {
           "targetId": "cont-server",
@@ -134,8 +158,14 @@
       "systemId": "sys-kakao-skill",
       "technology": "typescript",
       "description": "Fastify(ESM) 기반 스킬 서버. POST /skill(발화→mock SkillResponse), POST /echo(실제 요청 원문 캡처), GET /health. 개인 카카오 키는 .env(dotenv)로 로드. :3000.",
-      "position": { "x": 400, "y": 100 },
-      "healthCheck": { "url": "http://localhost:3000/health", "verified": false },
+      "position": {
+        "x": 400,
+        "y": 100
+      },
+      "healthCheck": {
+        "url": "http://localhost:3000/health",
+        "verified": false
+      },
       "connections": [
         {
           "targetId": "cont-contract",
@@ -154,7 +184,10 @@
       "systemId": "sys-kakao-skill",
       "technology": "typescript",
       "description": "요청(SkillPayload, 가설)·응답(SkillResponse) 타입과 렌더링 제약 상수의 단일 출처. server·playground가 공유해 잘못된 조합을 컴파일 타임에 차단. tsup(ESM+dts) 빌드.",
-      "position": { "x": 800, "y": 0 },
+      "position": {
+        "x": 800,
+        "y": 0
+      },
       "connections": []
     },
     {
@@ -163,8 +196,11 @@
       "type": "container",
       "systemId": "sys-kakao-skill",
       "technology": "storage",
-      "description": "POST /echo가 실제 카카오 요청 원문을 타임스탬프 JSON 파일로 기록하는 로컬 파일 저장소. 요청 계약·context 수명 실측의 근거.",
-      "position": { "x": 800, "y": 250 },
+      "description": "로컬 파일 저장소(docker 볼륨). 두 용도: (1) POST /echo가 실제 카카오 요청 원문을 타임스탬프 JSON으로 기록(요청 계약 실측). (2) 대화 이력을 history/<botUserKey>.json으로 적재(RAG 전송 소스).",
+      "position": {
+        "x": 800,
+        "y": 250
+      },
       "connections": []
     }
   ],
@@ -177,10 +213,19 @@
       "containerId": "cont-server",
       "technology": "typescript",
       "description": "Fastify 인스턴스 생성, 라우트 등록, pino 로깅, :3000 리슨.",
-      "position": { "x": 0, "y": 120 },
+      "position": {
+        "x": 0,
+        "y": 120
+      },
       "connections": [
-        { "targetId": "comp-skill-route", "label": "라우트 등록" },
-        { "targetId": "comp-echo-route", "label": "라우트 등록" }
+        {
+          "targetId": "comp-skill-route",
+          "label": "라우트 등록"
+        },
+        {
+          "targetId": "comp-echo-route",
+          "label": "라우트 등록"
+        }
       ]
     },
     {
@@ -190,10 +235,20 @@
       "systemId": "sys-kakao-skill",
       "containerId": "cont-server",
       "technology": "typescript",
-      "description": "요청 body에서 userRequest.utterance를 방어적으로 파싱(요청 타입이 가설이라)해 데모 빌더로 SkillResponse를 만들어 반환. 추후 RAG 변환으로 교체.",
-      "position": { "x": 400, "y": 0 },
+      "description": "요청 body에서 user.id·utterance를 방어적으로 파싱해, botUserKey별 대화 이력을 로드→블록 디스패치로 SkillResponse 생성→이번 턴을 이력에 적재. \"RAG 검색\" 발화 시 누적 이력 전체를 답변으로 렌더(RAG 전송 시뮬레이션). 추후 폴백 자리에서 RAG 변환으로 교체.",
+      "position": {
+        "x": 400,
+        "y": 0
+      },
       "connections": [
-        { "targetId": "comp-builders", "label": "buildDemoResponse 호출" }
+        {
+          "targetId": "comp-builders",
+          "label": "buildDemoResponse 호출"
+        },
+        {
+          "targetId": "comp-history",
+          "label": "이력 로드/적재"
+        }
       ]
     },
     {
@@ -204,7 +259,10 @@
       "containerId": "cont-server",
       "technology": "typescript",
       "description": "실제 카카오 요청 헤더·본문을 원문 그대로 captured-requests/에 저장하고 user.id·contexts 유무를 로깅. 최소 유효 SkillResponse 반환.",
-      "position": { "x": 400, "y": 250 },
+      "position": {
+        "x": 400,
+        "y": 250
+      },
       "connections": []
     },
     {
@@ -215,7 +273,10 @@
       "containerId": "cont-server",
       "technology": "typescript",
       "description": "contract 타입으로 SkillResponse 출력 컴포넌트(simpleText·basicCard·listCard·itemCard·carousel)와 버튼을 조립. 발화별 mock 데모(강서구 itemCard 재현 포함).",
-      "position": { "x": 800, "y": 0 },
+      "position": {
+        "x": 800,
+        "y": 0
+      },
       "connections": []
     },
     {
@@ -226,10 +287,19 @@
       "containerId": "cont-playground",
       "technology": "react",
       "description": "발화 입력·바로가기로 SkillPayload를 만들어 /skill을 호출하고, 응답을 렌더러·검증기에 넘겨 대화 흐름을 시뮬레이션. 원문 JSON 토글 제공.",
-      "position": { "x": 0, "y": 120 },
+      "position": {
+        "x": 0,
+        "y": 120
+      },
       "connections": [
-        { "targetId": "comp-renderer", "label": "SkillResponse 렌더" },
-        { "targetId": "comp-validate", "label": "제약 위반 검증" }
+        {
+          "targetId": "comp-renderer",
+          "label": "SkillResponse 렌더"
+        },
+        {
+          "targetId": "comp-validate",
+          "label": "제약 위반 검증"
+        }
       ]
     },
     {
@@ -240,7 +310,10 @@
       "containerId": "cont-playground",
       "technology": "react",
       "description": "SkillResponse를 카카오톡 말풍선·카드·버튼·캐러셀·itemCard로 그리는 렌더러. 버튼 message/block 액션은 후속 발화로 되쏘아 왕복을 시뮬레이션.",
-      "position": { "x": 400, "y": 0 },
+      "position": {
+        "x": 400,
+        "y": 0
+      },
       "connections": []
     },
     {
@@ -251,7 +324,10 @@
       "containerId": "cont-playground",
       "technology": "typescript",
       "description": "contract의 제약 상수(MAX_OUTPUTS·TEXT_LIMITS·MAX_ITEMCARD_ROWS 등)를 재사용해 렌더링 제약 위반을 런타임 경고 목록으로 산출.",
-      "position": { "x": 400, "y": 250 },
+      "position": {
+        "x": 400,
+        "y": 250
+      },
       "connections": []
     },
     {
@@ -262,8 +338,30 @@
       "containerId": "cont-playground",
       "technology": "react",
       "description": "플레이그라운드 우측 발송 카드 디자이너. 토글로 두 빌더 제공: (1) 친구톡(채널 친구 대상, 비즈메시지) — contract friendtalk 타입, (2) 메시지 템플릿(공유/개인, developers template_object) — contract message 타입. 폼+미리보기+편집 가능한 JSON. 실제 발송은 발신프로필(친구톡)/토큰 확보 후 연결.",
-      "position": { "x": 800, "y": 125 },
+      "position": {
+        "x": 800,
+        "y": 125
+      },
       "connections": []
+    },
+    {
+      "id": "comp-history",
+      "name": "대화 이력 저장소 (history-store)",
+      "type": "component",
+      "systemId": "sys-kakao-skill",
+      "containerId": "cont-server",
+      "technology": "typescript",
+      "description": "botUserKey(userRequest.user.id)별 대화 이력을 captured-requests/history/<userId>.json 파일로 적재·조회. 매 /skill 턴에서 이전 이력 로드→이번 턴 append→저장. RAG 전송 소스. (당초 카카오 context 왕복을 시도했으나 실서비스 미확인으로 파일 저장소로 전환.)",
+      "position": {
+        "x": 700,
+        "y": 0
+      },
+      "connections": [
+        {
+          "targetId": "cont-captured",
+          "label": "이력 파일 read/write"
+        }
+      ]
     }
   ],
   "codeElements": [],
@@ -275,7 +373,10 @@
         "name": "운영 (Production)",
         "nodeType": "environment",
         "technology": "AWS",
-        "position": { "x": 40, "y": 40 }
+        "position": {
+          "x": 40,
+          "y": 40
+        }
       },
       {
         "id": "ec2",
@@ -284,7 +385,10 @@
         "parentId": "env-prod",
         "technology": "AWS EC2 프리티어 (t2.micro · 1 vCPU / 1 GiB) · Ubuntu",
         "description": "docker compose로 컨테이너 구동. cloudflared 터널(profile: tunnel)로 공개 HTTPS를 노출해 카카오 스킬 웹훅 진입점을 만든다. ⚠️ AWS 프리티어는 t2.micro(1GiB)로, 'small'(t2.small 2GiB)은 유료 — 실제 규격 확인 필요.",
-        "position": { "x": 24, "y": 200 }
+        "position": {
+          "x": 24,
+          "y": 200
+        }
       },
       {
         "id": "inst-server",
@@ -295,7 +399,10 @@
         "replicas": 1,
         "environment": "prod",
         "description": ":3000, Fastify. cloudflared가 이 컨테이너(server:3000)로 프록시.",
-        "position": { "x": 20, "y": 40 }
+        "position": {
+          "x": 20,
+          "y": 40
+        }
       },
       {
         "id": "inst-playground",
@@ -306,7 +413,10 @@
         "replicas": 1,
         "environment": "prod",
         "description": ":5173→80, nginx 정적 서빙 + /skill·/echo 프록시.",
-        "position": { "x": 20, "y": 150 }
+        "position": {
+          "x": 20,
+          "y": 150
+        }
       },
       {
         "id": "inst-captured",
@@ -315,13 +425,18 @@
         "parentId": "ec2",
         "containerId": "cont-captured",
         "environment": "prod",
-        "description": "Docker 볼륨(./captured-requests → /app/captured-requests). /echo 원문 저장.",
-        "position": { "x": 20, "y": 260 }
+        "description": "Docker 볼륨(./captured-requests → /app/captured-requests). /echo 원문 + 대화 이력(history/<botUserKey>.json) 저장. 컨테이너 재생성에도 보존.",
+        "position": {
+          "x": 20,
+          "y": 260
+        }
       }
     ]
   },
   "designIntent": {
-    "personas": ["개발자"],
+    "personas": [
+      "개발자"
+    ],
     "glossary": {
       "스킬 서버": "카카오 챗봇이 POST로 호출하는 우리 응답 웹훅 서버",
       "SkillResponse": "카카오가 채팅창에 렌더링하는 응답 JSON 계약(version 2.0)",
@@ -333,10 +448,14 @@
       {
         "id": "d1",
         "topic": "데이터 저장소",
-        "choice": "DB를 되도록 쓰지 않고 대화 상태는 카카오 context에 둔다",
+        "choice": "DB를 되도록 쓰지 않고 대화 상태는 카카오 context에 둔다 (⚠️ 실측 결과 대체됨 → d10: context 왕복 미확인으로 파일 저장소 채택)",
         "why": "각 사용자 데이터를 채팅방 세션에 두려는 목표 + 운영 단순화. 카카오 context는 응답↔요청으로 왕복되는 상태 메커니즘이라 대화 상태 보관에 부합.",
-        "rejected": ["RDB 상시 운영"],
-        "relatedIds": ["sys-kakao-skill"],
+        "rejected": [
+          "RDB 상시 운영"
+        ],
+        "relatedIds": [
+          "sys-kakao-skill"
+        ],
         "decidedBy": "개발자"
       },
       {
@@ -344,7 +463,11 @@
         "topic": "인터페이스 단일 출처",
         "choice": "packages/contract에 요청/응답 타입·제약 상수를 집약하고 server·playground가 공유",
         "why": "응답 조합 오류를 컴파일 타임에 차단하고 렌더링 제약 상수를 렌더러·검증이 재사용하게 하기 위함.",
-        "relatedIds": ["cont-contract", "cont-server", "cont-playground"],
+        "relatedIds": [
+          "cont-contract",
+          "cont-server",
+          "cont-playground"
+        ],
         "decidedBy": "개발자"
       },
       {
@@ -352,7 +475,11 @@
         "topic": "요청 계약 확정 방법",
         "choice": "request.ts(SkillPayload)를 HYPOTHESIS로 두고 POST /echo 실측으로 확정",
         "why": "카카오 공개 문서에 요청 JSON 스펙이 없어, 실제 요청을 캡처해 user.id 고정성·contexts 왕복·params 수명을 눈으로 확인해야 함.",
-        "relatedIds": ["comp-echo-route", "cont-captured", "cont-server"],
+        "relatedIds": [
+          "comp-echo-route",
+          "cont-captured",
+          "cont-server"
+        ],
         "decidedBy": "개발자"
       },
       {
@@ -360,8 +487,14 @@
         "topic": "로컬 공개 노출",
         "choice": "cloudflared 또는 ssh(localhost.run) 터널로 로컬 서버를 공개 HTTPS로 노출",
         "why": "실측 단계라 클라우드 배포 전에 설치·계정 부담 없이 카카오가 접근할 HTTPS URL이 필요.",
-        "rejected": ["즉시 클라우드 배포", "ngrok(계정·authtoken 필요)"],
-        "relatedIds": ["sys-kakao-platform", "cont-server"],
+        "rejected": [
+          "즉시 클라우드 배포",
+          "ngrok(계정·authtoken 필요)"
+        ],
+        "relatedIds": [
+          "sys-kakao-platform",
+          "cont-server"
+        ],
         "decidedBy": "개발자"
       },
       {
@@ -369,7 +502,10 @@
         "topic": "리치 UI 재현 전략",
         "choice": "itemCard를 구현으로 승격하고, 컬러 뱃지칩·그라데이션 등 브랜딩 장식은 이미지로 처리",
         "why": "카카오 카드에는 색칩·그라데이션 같은 디자인 프리미티브가 없음. 데이터성 요소(제목·금액 행·버튼)만 네이티브로, 장식은 썸네일 이미지에 굽는다.",
-        "relatedIds": ["cont-contract", "comp-builders"],
+        "relatedIds": [
+          "cont-contract",
+          "comp-builders"
+        ],
         "decidedBy": "개발자"
       },
       {
@@ -377,7 +513,9 @@
         "topic": "RAG 백엔드 스택",
         "choice": "RAG 백엔드는 Python 계열(FastAPI/LangChain 등)로 간다",
         "why": "RAG 생태계(임베딩·리트리버·LLM 오케스트레이션 라이브러리)가 Python에서 가장 성숙해 연동 비용이 낮음.",
-        "relatedIds": ["sys-rag"],
+        "relatedIds": [
+          "sys-rag"
+        ],
         "decidedBy": "개발자"
       },
       {
@@ -385,8 +523,14 @@
         "topic": "채널 능동 발송 인터페이스",
         "choice": "채널 친구 대상 능동(push) 발송은 카카오 비즈메시지 '친구톡'으로 간다. 플레이그라운드에 친구톡 카드 빌더를 두고, developers의 template object(공유/개인)는 보조 도구로 분리.",
         "why": "이 프로젝트는 '채널' 전용이다. 채널 친구에게 보내는 능동 메시지는 developers.kakao.com 메시지 API(나에게/친구에게, 개인용)가 아니라 비즈메시지 친구톡/알림톡(별도 제품·포맷)이다. 개인 메시지(memo)는 범위 밖이라 제거했다.",
-        "rejected": ["나에게 보내기(memo) API — 개인용이라 채널 목적과 무관"],
-        "relatedIds": ["comp-msg-builder", "sys-kakao-api", "act-user"],
+        "rejected": [
+          "나에게 보내기(memo) API — 개인용이라 채널 목적과 무관"
+        ],
+        "relatedIds": [
+          "comp-msg-builder",
+          "sys-kakao-api",
+          "act-user"
+        ],
         "decidedBy": "개발자"
       },
       {
@@ -394,7 +538,11 @@
         "topic": "챗봇·친구톡 두 축 범위",
         "choice": "프로젝트는 채널을 챗봇(인바운드 응답)과 친구톡(아웃바운드 push) 두 축으로 활용한다. 두 축은 독립이며, sys-kakao-api(메시지 API) 노드와 그 엣지는 오직 친구톡 축 전용이다.",
         "why": "챗봇 응답은 API 발송이 아니라 웹훅 요청에 대한 HTTP 응답(SkillResponse) return이라 아웃바운드 메시지 API가 개입하지 않는다. 챗봇만 보면 sys-kakao-api는 불필요하나, 친구톡 축을 위해 모델에 유지한다.",
-        "relatedIds": ["sys-kakao-platform", "cont-server", "sys-kakao-api"],
+        "relatedIds": [
+          "sys-kakao-platform",
+          "cont-server",
+          "sys-kakao-api"
+        ],
         "decidedBy": "개발자"
       },
       {
@@ -402,8 +550,31 @@
         "topic": "진입 웰컴 처리 위치",
         "choice": "진입 인사(웰컴)는 챗봇 웰컴 블록이 아니라 채널 친구추가 메시지(채널 레이어)로 처리한다. 서버의 welcome 스킬 블록은 제거했다.",
         "why": "카카오 오픈빌더 웰컴 블록은 진입 시 사용자 발화가 없어 스킬을 호출하지 않는다(스킬데이터 웰컴 자동발송 미동작, 서버 로그도 안 찍힘). 정적 카드로 해도 실제 채널 진입 자동발송이 불안정(사업자 미인증 채널 등 영향 추정). 진입 인사는 채널 친구추가 메시지가 100% 확실하므로 그쪽으로 옮김.",
-        "rejected": ["챗봇 웰컴 블록에 스킬데이터 연결", "챗봇 웰컴 블록에 정적 카드"],
-        "relatedIds": ["sys-kakao-platform", "cont-server"],
+        "rejected": [
+          "챗봇 웰컴 블록에 스킬데이터 연결",
+          "챗봇 웰컴 블록에 정적 카드"
+        ],
+        "relatedIds": [
+          "sys-kakao-platform",
+          "cont-server"
+        ],
+        "decidedBy": "개발자"
+      },
+      {
+        "id": "d10",
+        "topic": "대화 이력 저장소 (context → 파일)",
+        "choice": "context 왕복 대신 botUserKey별 JSON 파일 저장소를 docker 볼륨(captured-requests/history/)에 둔다",
+        "why": "실서비스에서 카카오 output context 왕복이 확인되지 않아(RAG 검색이 항상 빈 이력) 신뢰 가능한 적재처가 필요했다. 마운트된 볼륨의 파일은 호스트에서 그대로 열람·수집되고 컨테이너 재생성에도 보존되며, RAG 연동 시 그 파일이 곧 전송 소스가 된다. 동일 인터페이스(load/append)로 KV·DB 전환이 열려 있다.",
+        "rejected": [
+          "카카오 context 왕복(실서비스 미확인)",
+          "RDB 상시 운영"
+        ],
+        "relatedIds": [
+          "comp-history",
+          "cont-captured",
+          "comp-skill-route",
+          "sys-rag"
+        ],
         "decidedBy": "개발자"
       }
     ],
@@ -411,17 +582,25 @@
       {
         "id": "q1",
         "question": "카카오 context params 수명(lifeSpan/ttl)과 user.id(botUserKey) 세션 간 고정성이 미확정 → /echo 실측 필요",
-        "blockedIds": ["sys-kakao-skill", "comp-echo-route"]
+        "blockedIds": [
+          "sys-kakao-skill",
+          "comp-echo-route"
+        ]
       },
       {
         "id": "q2",
         "question": "세션을 넘어 유지될 영속 데이터가 필요할 경우 저장소(botUserKey 기반 KV 등) 미결",
-        "blockedIds": ["sys-kakao-skill"]
+        "blockedIds": [
+          "sys-kakao-skill"
+        ]
       },
       {
         "id": "q3",
         "question": "친구톡 실제 발송은 비즈메시지 온보딩(발신프로필 senderKey 등록 + 발송 경로: 카카오 i 커넥트 직접 vs 대행사) 확보 후 가능. 현재 발신프로필 없음 → 발송 봉투·엔드포인트 미확정. 빌더는 콘텐츠 포맷만 선구현.",
-        "blockedIds": ["comp-msg-builder", "sys-kakao-api"]
+        "blockedIds": [
+          "comp-msg-builder",
+          "sys-kakao-api"
+        ]
       }
     ],
     "outOfScope": [

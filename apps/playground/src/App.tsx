@@ -1,5 +1,5 @@
-import { useRef, useState } from "react";
-import type { RequestContext, SkillPayload, SkillResponse } from "@sprint-kakao/contract";
+import { useState } from "react";
+import type { SkillPayload, SkillResponse } from "@sprint-kakao/contract";
 import { KakaoRenderer } from "./renderer/KakaoRenderer.js";
 import { validate, type Warning } from "./renderer/validate.js";
 import { MessageBuilder } from "./builder/MessageBuilder.js";
@@ -17,13 +17,10 @@ interface Turn {
 // 고정 사용자 — 실측 전까지 botUserKey 가설값
 const USER_ID = "playground-user-1";
 
-async function callSkill(
-  utterance: string,
-  meta?: Record<string, unknown>,
-  contexts: RequestContext[] = [],
-): Promise<SkillResponse> {
+async function callSkill(utterance: string, meta?: Record<string, unknown>): Promise<SkillResponse> {
   const payload: SkillPayload = {
-    userRequest: { utterance, user: { id: USER_ID }, contexts },
+    // 고정 user.id로 매 요청 전송 → 서버가 botUserKey별 파일 저장소에 이력을 누적한다.
+    userRequest: { utterance, user: { id: USER_ID } },
     bot: { id: "playground-bot" },
     action: { name: "skill", clientExtra: meta?.["extra"] as Record<string, unknown> | undefined },
   };
@@ -41,9 +38,6 @@ function ChatPane() {
   const [turns, setTurns] = useState<Turn[]>([]);
   const [input, setInput] = useState("");
   const [showJson, setShowJson] = useState(false);
-  // 실제 카카오처럼 직전 응답의 context.values를 다음 요청 contexts로 왕복시킨다.
-  // 대화 이력(chatHistory)은 서버 저장소가 아니라 이 왕복만으로 누적된다. ('RAG 검색'이 이걸 그림)
-  const contextsRef = useRef<RequestContext[]>([]);
 
   // 진입 웰컴은 챗봇(스킬)이 아니라 채널 친구추가 메시지(채널 레이어)가 담당한다.
   // (카카오 웰컴 블록은 진입 시 스킬 자동호출이 안 됨 — docs/blocks.md 참고)
@@ -55,9 +49,7 @@ function ChatPane() {
     const idx = turns.length;
     setTurns((t) => [...t, { utterance: u, meta }]);
     try {
-      const response = await callSkill(u, meta, contextsRef.current);
-      // 응답 context를 다음 요청으로 왕복(카카오 동작 모사). ContextValue[]는 RequestContext[]와 호환.
-      contextsRef.current = response.context?.values ?? contextsRef.current;
+      const response = await callSkill(u, meta);
       const warnings = validate(response);
       setTurns((t) => t.map((turn, i) => (i === idx ? { ...turn, response, warnings } : turn)));
     } catch (e) {
