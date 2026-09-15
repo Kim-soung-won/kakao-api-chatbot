@@ -26,3 +26,16 @@ services:
       timeout: 5s
       retries: 3
       start_period: 10s
+
+  # 렌더러/빌더 테스트 하니스. nginx 정적 서빙 + /skill·/echo 는 server로 프록시.
+  playground:
+    build:
+      context: .
+      dockerfile: apps/playground/Dockerfile
+    image: sprint-kakao-playground
+    container_name: sprint-kakao-playground
+    ports:
+      - "5173:80"
+    depends_on:
+      - server
+    restart: unless-stopped
