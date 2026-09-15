@@ -1,0 +1,360 @@
+{
+  "schemaVersion": 2,
+  "viewLevel": "container",
+  "activeSystemId": "sys-kakao-skill",
+  "activeContainerId": "cont-server",
+  "systems": [
+    {
+      "id": "act-user",
+      "name": "카카오톡 사용자",
+      "type": "system",
+      "technology": "users",
+      "description": "카카오톡 채널에서 발화하고 카드·버튼 응답을 받는 최종 사용자.",
+      "position": { "x": 0, "y": 0 },
+      "connections": [
+        {
+          "targetId": "sys-kakao-platform",
+          "label": "발화 / 카드·버튼 확인",
+          "technology": "https"
+        },
+        {
+          "targetId": "sys-kakao-platform",
+          "label": "채널 추가 (친구 등록)",
+          "technology": "https",
+          "description": "사용자가 채널을 친구로 추가하면 친구톡(정보·광고성) 발송 대상이 된다. 이후 우리 시스템이 카카오 메시지 API로 이 채널 친구군에게 능동(push) 메시지를 보낼 수 있는 근거가 되는 관계."
+        }
+      ]
+    },
+    {
+      "id": "sys-kakao-platform",
+      "name": "카카오 챗봇 플랫폼 (오픈빌더·채널)",
+      "type": "system",
+      "technology": "cloud",
+      "description": "외부 시스템. 채널로 들어온 발화를 블록/스킬로 라우팅하고, 우리 스킬 서버를 웹훅으로 호출하며, 돌려받은 SkillResponse를 채팅창에 렌더링한다.",
+      "position": { "x": 400, "y": 0 },
+      "connections": [
+        {
+          "targetId": "sys-kakao-skill",
+          "label": "스킬 요청 ↔ SkillResponse(JSON)",
+          "technology": "https",
+          "description": "카카오 챗봇 스킬 웹훅 채널. 사용자가 채널에서 발화하면 오픈빌더가 매칭된 블록의 스킬 URL로 요청을 보내고, 우리 스킬 서버가 응답 JSON을 돌려주면 그 내용을 채팅창에 렌더링한다.\n\n[요청] 카카오 → 스킬 서버: HTTPS POST, Content-Type application/json. 본문은 SkillPayload(⚠️가설, /echo 실측으로 확정) — userRequest.utterance(발화 원문), userRequest.user.id(botUserKey 추정 식별키), userRequest.contexts[](직전 응답 context.params의 왕복), action.params/detailParams(엔티티), action.clientExtra(버튼 block extra 전달 여부 미확정), bot.id.\n\n[응답] 스킬 서버 → 카카오: HTTP 200, SkillResponse(version \"2.0\") — template.outputs[](말풍선 1~3개: simpleText·simpleImage·basicCard·listCard·itemCard·carousel), template.quickReplies[](최대 10), 선택적 context.values[](lifeSpan/ttl/params로 대화 상태 왕복), data. 렌더링 제약 위반 시 카카오 측 렌더 실패.\n\n[전송/노출] 스킬 URL은 HTTPS 필수. 실측 단계에서는 로컬 :3000을 cloudflared/ssh(localhost.run) 터널로 공개 HTTPS에 노출해 등록하고, 향후 공개 호스트 배포로 대체한다.\n\n[운영 제약] 카카오 스킬은 동기 응답에 초 단위 타임아웃이 있어, RAG처럼 응답 생성이 오래 걸리면 콜백(useCallback) 패턴으로 비동기 처리해야 한다(정확한 제한·콜백 형식은 /echo 실측·오픈빌더 문서로 확정). 인증은 별도 API 키가 아니라 오픈빌더에 등록된 스킬 URL로 신뢰하는 구조.\n\n[방향] ⬅️ 인바운드 — 카카오가 우리 서버를 먼저 호출한다(connection reversed). 우리 서버가 localhost라 공개 인터넷에서 보이지 않으므로, 이 경로에만 공개 노출(터널 또는 공개 배포 + HTTPS)이 필요하다. 프로젝트에서 터널이 필요한 유일한 이유가 이 엣지다.",
+          "bidirectional": true
+        }
+      ]
+    },
+    {
+      "id": "act-dev",
+      "name": "개발자 · 운영자",
+      "type": "system",
+      "technology": "users",
+      "description": "플레이그라운드로 응답 UX·제약을 로컬에서 테스트하고 서버를 운영하는 개발자.",
+      "position": { "x": 400, "y": 350 },
+      "connections": [
+        {
+          "targetId": "sys-kakao-skill",
+          "label": "테스트 · 운영",
+          "technology": "https"
+        }
+      ]
+    },
+    {
+      "id": "sys-kakao-skill",
+      "name": "카카오 챗봇 스킬 시스템 (sprint-kakao)",
+      "type": "system",
+      "technology": "server",
+      "description": "카카오 챗봇에 붙는 스킬 서버 + 로컬 렌더링 테스트 하니스. 요청/응답 인터페이스를 앱 레벨 타입으로 고정하고, 향후 RAG 응답을 SkillResponse로 변환하는 것이 목표.",
+      "position": { "x": 800, "y": 120 },
+      "connections": [
+        {
+          "targetId": "sys-rag",
+          "label": "질의 → 답변 (다음 단계)",
+          "technology": "https"
+        },
+        {
+          "targetId": "sys-kakao-api",
+          "label": "메시지 발송 요청 (미사용)",
+          "technology": "https",
+          "description": "스킬 서버가 챗봇 응답과 별개로 사용자에게 능동 알림을 보낼 때 비즈메시지 API로 발송 요청(REST, KakaoAK 인증). 예: 복지 신청 결과 알림. 현재 단계 미사용, .env에 키만 보관.\n\n[방향] ➡️ 아웃바운드 — 우리가 카카오의 공개 API로 나가는 호출이라 터널 불필요. localhost에서도 그대로 동작한다(외부 API를 fetch로 부르는 것과 동일)."
+        }
+      ]
+    },
+    {
+      "id": "sys-rag",
+      "name": "RAG 백엔드 (다음 단계)",
+      "type": "system",
+      "technology": "python",
+      "description": "외부/예정. 검색 기반 답변을 생성해 스킬 서버에 제공할 백엔드. Python 계열(FastAPI/LangChain 등) 예정, 아직 미연동.",
+      "position": { "x": 1200, "y": 0 },
+      "connections": []
+    },
+    {
+      "id": "sys-kakao-api",
+      "name": "카카오 메시지 API (알림톡·친구톡, 미사용)",
+      "type": "system",
+      "technology": "cloud",
+      "description": "외부. 채널이 사용자에게 능동적으로(챗봇 응답과 별개) 메시지를 보내는 발송 API. 알림톡(정보성, 사전 승인 템플릿, 채널 친구가 아니어도 발송) / 친구톡(정보·광고성, 채널 친구에게만) — 비즈메시지 API(카카오 i 커넥트 메시지)로 발송. developers.kakao.com REST/Admin 키를 .env에 보관 중이나 현재 단계에서는 호출하지 않는다.",
+      "position": { "x": 1200, "y": 250 },
+      "connections": [
+        {
+          "targetId": "act-user",
+          "label": "메시지 전달 (알림톡·친구톡)",
+          "technology": "https",
+          "description": "발송 요청을 받은 카카오가 사용자 카카오톡으로 메시지를 전달한다. 친구톡은 채널 친구 대상, 알림톡은 승인된 템플릿 기반. 챗봇 스킬 왕복과 무관한 능동(push) 발송 경로. (다음 단계, 현재 미사용)"
+        }
+      ]
+    }
+  ],
+  "containers": [
+    {
+      "id": "cont-playground",
+      "name": "테스트 플레이그라운드",
+      "type": "container",
+      "systemId": "sys-kakao-skill",
+      "technology": "react",
+      "description": "카카오톡 채팅창을 흉내내는 렌더러 + 요청 시뮬레이터. SkillResponse를 카드/버튼/캐러셀로 그리고, contract 상수로 렌더링 제약 위반을 런타임 경고로 검증. React + Vite, :5173.",
+      "position": { "x": 0, "y": 100 },
+      "healthCheck": { "url": "http://localhost:5173/", "verified": false },
+      "connections": [
+        {
+          "targetId": "cont-server",
+          "label": "/skill·/echo 호출",
+          "technology": "http",
+          "description": "Vite dev proxy → :3000"
+        },
+        {
+          "targetId": "cont-contract",
+          "label": "타입·제약 상수 import (빌드타임)"
+        }
+      ]
+    },
+    {
+      "id": "cont-server",
+      "name": "스킬 서버 (Fastify)",
+      "type": "container",
+      "systemId": "sys-kakao-skill",
+      "technology": "typescript",
+      "description": "Fastify(ESM) 기반 스킬 서버. POST /skill(발화→mock SkillResponse), POST /echo(실제 요청 원문 캡처), GET /health. 개인 카카오 키는 .env(dotenv)로 로드. :3000.",
+      "position": { "x": 400, "y": 100 },
+      "healthCheck": { "url": "http://localhost:3000/health", "verified": false },
+      "connections": [
+        {
+          "targetId": "cont-contract",
+          "label": "타입·제약 상수 import (빌드타임)"
+        },
+        {
+          "targetId": "cont-captured",
+          "label": "요청 원문 JSON 기록"
+        }
+      ]
+    },
+    {
+      "id": "cont-contract",
+      "name": "contract (인터페이스 계약 패키지)",
+      "type": "container",
+      "systemId": "sys-kakao-skill",
+      "technology": "typescript",
+      "description": "요청(SkillPayload, 가설)·응답(SkillResponse) 타입과 렌더링 제약 상수의 단일 출처. server·playground가 공유해 잘못된 조합을 컴파일 타임에 차단. tsup(ESM+dts) 빌드.",
+      "position": { "x": 800, "y": 0 },
+      "connections": []
+    },
+    {
+      "id": "cont-captured",
+      "name": "요청 캡처 저장소 (captured-requests/)",
+      "type": "container",
+      "systemId": "sys-kakao-skill",
+      "technology": "storage",
+      "description": "POST /echo가 실제 카카오 요청 원문을 타임스탬프 JSON 파일로 기록하는 로컬 파일 저장소. 요청 계약·context 수명 실측의 근거.",
+      "position": { "x": 800, "y": 250 },
+      "connections": []
+    }
+  ],
+  "components": [
+    {
+      "id": "comp-index",
+      "name": "index.ts (부트스트랩)",
+      "type": "component",
+      "systemId": "sys-kakao-skill",
+      "containerId": "cont-server",
+      "technology": "typescript",
+      "description": "Fastify 인스턴스 생성, 라우트 등록, pino 로깅, :3000 리슨.",
+      "position": { "x": 0, "y": 120 },
+      "connections": [
+        { "targetId": "comp-skill-route", "label": "라우트 등록" },
+        { "targetId": "comp-echo-route", "label": "라우트 등록" }
+      ]
+    },
+    {
+      "id": "comp-skill-route",
+      "name": "skill 라우트 (POST /skill)",
+      "type": "component",
+      "systemId": "sys-kakao-skill",
+      "containerId": "cont-server",
+      "technology": "typescript",
+      "description": "요청 body에서 userRequest.utterance를 방어적으로 파싱(요청 타입이 가설이라)해 데모 빌더로 SkillResponse를 만들어 반환. 추후 RAG 변환으로 교체.",
+      "position": { "x": 400, "y": 0 },
+      "connections": [
+        { "targetId": "comp-builders", "label": "buildDemoResponse 호출" }
+      ]
+    },
+    {
+      "id": "comp-echo-route",
+      "name": "echo 라우트 (POST /echo)",
+      "type": "component",
+      "systemId": "sys-kakao-skill",
+      "containerId": "cont-server",
+      "technology": "typescript",
+      "description": "실제 카카오 요청 헤더·본문을 원문 그대로 captured-requests/에 저장하고 user.id·contexts 유무를 로깅. 최소 유효 SkillResponse 반환.",
+      "position": { "x": 400, "y": 250 },
+      "connections": []
+    },
+    {
+      "id": "comp-builders",
+      "name": "응답 빌더 (outputs · demo)",
+      "type": "component",
+      "systemId": "sys-kakao-skill",
+      "containerId": "cont-server",
+      "technology": "typescript",
+      "description": "contract 타입으로 SkillResponse 출력 컴포넌트(simpleText·basicCard·listCard·itemCard·carousel)와 버튼을 조립. 발화별 mock 데모(강서구 itemCard 재현 포함).",
+      "position": { "x": 800, "y": 0 },
+      "connections": []
+    },
+    {
+      "id": "comp-app",
+      "name": "App (요청 시뮬레이터)",
+      "type": "component",
+      "systemId": "sys-kakao-skill",
+      "containerId": "cont-playground",
+      "technology": "react",
+      "description": "발화 입력·바로가기로 SkillPayload를 만들어 /skill을 호출하고, 응답을 렌더러·검증기에 넘겨 대화 흐름을 시뮬레이션. 원문 JSON 토글 제공.",
+      "position": { "x": 0, "y": 120 },
+      "connections": [
+        { "targetId": "comp-renderer", "label": "SkillResponse 렌더" },
+        { "targetId": "comp-validate", "label": "제약 위반 검증" }
+      ]
+    },
+    {
+      "id": "comp-renderer",
+      "name": "KakaoRenderer (렌더러)",
+      "type": "component",
+      "systemId": "sys-kakao-skill",
+      "containerId": "cont-playground",
+      "technology": "react",
+      "description": "SkillResponse를 카카오톡 말풍선·카드·버튼·캐러셀·itemCard로 그리는 렌더러. 버튼 message/block 액션은 후속 발화로 되쏘아 왕복을 시뮬레이션.",
+      "position": { "x": 400, "y": 0 },
+      "connections": []
+    },
+    {
+      "id": "comp-validate",
+      "name": "validate (제약 검증)",
+      "type": "component",
+      "systemId": "sys-kakao-skill",
+      "containerId": "cont-playground",
+      "technology": "typescript",
+      "description": "contract의 제약 상수(MAX_OUTPUTS·TEXT_LIMITS·MAX_ITEMCARD_ROWS 등)를 재사용해 렌더링 제약 위반을 런타임 경고 목록으로 산출.",
+      "position": { "x": 400, "y": 250 },
+      "connections": []
+    },
+    {
+      "id": "comp-msg-builder",
+      "name": "메시지 카드 빌더 (MessageBuilder)",
+      "type": "component",
+      "systemId": "sys-kakao-skill",
+      "containerId": "cont-playground",
+      "technology": "react",
+      "description": "카카오 메시지 API의 template object(Feed·Text 등)를 폼으로 편집하고 카카오톡 카드 미리보기 + 발송용 JSON을 내보내는 빌더. 챗봇 SkillResponse와는 별개인 능동 발송(친구톡/알림톡) 카드 디자인용. contract의 message 타입·제약을 공유.",
+      "position": { "x": 800, "y": 125 },
+      "connections": []
+    }
+  ],
+  "codeElements": [],
+  "designIntent": {
+    "personas": ["개발자"],
+    "glossary": {
+      "스킬 서버": "카카오 챗봇이 POST로 호출하는 우리 응답 웹훅 서버",
+      "SkillResponse": "카카오가 채팅창에 렌더링하는 응답 JSON 계약(version 2.0)",
+      "botUserKey": "봇+사용자 조합 식별키로 추정되는 값 (세션 간 고정성 미확정)",
+      "알림톡": "사전 승인된 템플릿으로 보내는 정보성 메시지. 채널 친구가 아니어도 발송 가능(비즈메시지 API)",
+      "친구톡": "채널을 친구 추가한 사용자에게만 보내는 정보·광고성 메시지(비즈메시지 API)"
+    },
+    "decisions": [
+      {
+        "id": "d1",
+        "topic": "데이터 저장소",
+        "choice": "DB를 되도록 쓰지 않고 대화 상태는 카카오 context에 둔다",
+        "why": "각 사용자 데이터를 채팅방 세션에 두려는 목표 + 운영 단순화. 카카오 context는 응답↔요청으로 왕복되는 상태 메커니즘이라 대화 상태 보관에 부합.",
+        "rejected": ["RDB 상시 운영"],
+        "relatedIds": ["sys-kakao-skill"],
+        "decidedBy": "개발자"
+      },
+      {
+        "id": "d2",
+        "topic": "인터페이스 단일 출처",
+        "choice": "packages/contract에 요청/응답 타입·제약 상수를 집약하고 server·playground가 공유",
+        "why": "응답 조합 오류를 컴파일 타임에 차단하고 렌더링 제약 상수를 렌더러·검증이 재사용하게 하기 위함.",
+        "relatedIds": ["cont-contract", "cont-server", "cont-playground"],
+        "decidedBy": "개발자"
+      },
+      {
+        "id": "d3",
+        "topic": "요청 계약 확정 방법",
+        "choice": "request.ts(SkillPayload)를 HYPOTHESIS로 두고 POST /echo 실측으로 확정",
+        "why": "카카오 공개 문서에 요청 JSON 스펙이 없어, 실제 요청을 캡처해 user.id 고정성·contexts 왕복·params 수명을 눈으로 확인해야 함.",
+        "relatedIds": ["comp-echo-route", "cont-captured", "cont-server"],
+        "decidedBy": "개발자"
+      },
+      {
+        "id": "d4",
+        "topic": "로컬 공개 노출",
+        "choice": "cloudflared 또는 ssh(localhost.run) 터널로 로컬 서버를 공개 HTTPS로 노출",
+        "why": "실측 단계라 클라우드 배포 전에 설치·계정 부담 없이 카카오가 접근할 HTTPS URL이 필요.",
+        "rejected": ["즉시 클라우드 배포", "ngrok(계정·authtoken 필요)"],
+        "relatedIds": ["sys-kakao-platform", "cont-server"],
+        "decidedBy": "개발자"
+      },
+      {
+        "id": "d5",
+        "topic": "리치 UI 재현 전략",
+        "choice": "itemCard를 구현으로 승격하고, 컬러 뱃지칩·그라데이션 등 브랜딩 장식은 이미지로 처리",
+        "why": "카카오 카드에는 색칩·그라데이션 같은 디자인 프리미티브가 없음. 데이터성 요소(제목·금액 행·버튼)만 네이티브로, 장식은 썸네일 이미지에 굽는다.",
+        "relatedIds": ["cont-contract", "comp-builders"],
+        "decidedBy": "개발자"
+      },
+      {
+        "id": "d6",
+        "topic": "RAG 백엔드 스택",
+        "choice": "RAG 백엔드는 Python 계열(FastAPI/LangChain 등)로 간다",
+        "why": "RAG 생태계(임베딩·리트리버·LLM 오케스트레이션 라이브러리)가 Python에서 가장 성숙해 연동 비용이 낮음.",
+        "relatedIds": ["sys-rag"],
+        "decidedBy": "개발자"
+      },
+      {
+        "id": "d7",
+        "topic": "능동 발송 카드 인터페이스",
+        "choice": "채널 친구 대상 능동(push) 메시지는 카카오 메시지 API의 template object(Feed/Text 등)로 설계하고, 플레이그라운드에 전용 카드 빌더를 둔다",
+        "why": "챗봇 응답(SkillResponse)과 능동 발송(친구톡/알림톡)은 서로 다른 JSON 인터페이스다. 발송 카드를 코드로 손조립하지 않고 폼+미리보기+JSON 내보내기로 디자인하기 위함.",
+        "relatedIds": ["comp-msg-builder", "sys-kakao-api"],
+        "decidedBy": "개발자"
+      }
+    ],
+    "openQuestions": [
+      {
+        "id": "q1",
+        "question": "카카오 context params 수명(lifeSpan/ttl)과 user.id(botUserKey) 세션 간 고정성이 미확정 → /echo 실측 필요",
+        "blockedIds": ["sys-kakao-skill", "comp-echo-route"]
+      },
+      {
+        "id": "q2",
+        "question": "세션을 넘어 유지될 영속 데이터가 필요할 경우 저장소(botUserKey 기반 KV 등) 미결",
+        "blockedIds": ["sys-kakao-skill"]
+      }
+    ],
+    "outOfScope": [
+      "RAG 백엔드 실제 구현·연동 (다음 단계)",
+      "카카오 메시지 발송 API 호출 (현재 미사용)",
+      "code 레벨 분해 (이번 범위 아님)",
+      "deployment(물리) 레이어 — 현재 로컬/터널만 사용"
+    ],
+    "nextStep": "/echo 실측으로 요청 계약·context 수명(q1)을 확정한 뒤 저장소 전략(d1/q2) 결론",
+    "lastUpdated": "2026-09-14"
+  }
+}
