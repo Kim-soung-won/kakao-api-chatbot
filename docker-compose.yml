@@ -16,9 +16,8 @@ services:
     env_file:
       - path: apps/server/.env
         required: false
-    # captured-requests/ 볼륨: (1) /echo 요청 원문 캡처  (2) 대화 이력 저장소
-    #   → captured-requests/history/<botUserKey>.json 에 턴별로 적재(RAG 전송 소스).
-    #   호스트에서 그대로 열람·수집 가능하며 컨테이너 재생성에도 이력이 보존된다.
+    # /echo 캡처를 호스트에서 확인하려면 볼륨 마운트(선택)
+    # (대화 이력은 서버 저장소가 아니라 카카오 context 왕복으로 관리 — docs/rag-history.md)
     volumes:
       - ./captured-requests:/app/captured-requests
     restart: unless-stopped

@@ -38,9 +38,8 @@ export interface UserRequest {
   utterance: string;
   user: SkillUser;
   /**
-   * ⚠️ 초기 가설의 위치. 카카오 통념상 `contexts`는 **페이로드 최상위**(`SkillPayload.contexts`)로
-   * 온다. 여기(userRequest 하위)는 폴백일 뿐이며 /echo 실측으로 확정 대상. (대화 이력은 더 이상
-   * context에 의존하지 않고 botUserKey별 파일 저장소에 적재한다 — 서버 history-store.ts 참고.)
+   * ⚠️ 초기 가설의 위치. 카카오는 `contexts`를 **페이로드 최상위**(`SkillPayload.contexts`)로
+   * 왕복시킨다. 여기(userRequest 하위)는 폴백일 뿐이며 /echo 실측으로 확정 대상.
    */
   contexts?: RequestContext[];
   /** 발화가 들어온 블록 정보 등. */
@@ -72,9 +71,10 @@ export interface SkillPayload {
   intent?: { id?: string; name?: string };
   userRequest: UserRequest;
   /**
-   * 이전 응답에서 세팅한 출력 컨텍스트(`context.values[]`)의 왕복 결과로 추정.
-   * 카카오는 이 배열을 **페이로드 최상위**로 되돌려주는 것으로 통용된다. ⚠️ 왕복 여부·수명은
-   * /echo 실측 대상(검증 2·3). 대화 이력 저장에는 사용하지 않는다(파일 저장소로 전환).
+   * 이전 응답에서 세팅한 출력 컨텍스트(`context.values[]`)의 왕복 결과.
+   * 카카오는 이 배열을 **페이로드 최상위**로 되돌려준다(요청마다 갱신된 lifeSpan/ttl 포함).
+   * 서버는 여기서 대화 이력을 복원한다(`chatHistory` context). ⚠️ 왕복 여부·params 용량·수명은
+   * /echo 실측 대상(검증 2·3).
    */
   contexts?: RequestContext[];
   bot: BotRef;
