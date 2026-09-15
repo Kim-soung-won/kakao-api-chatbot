@@ -261,7 +261,7 @@
       "systemId": "sys-kakao-skill",
       "containerId": "cont-playground",
       "technology": "react",
-      "description": "카카오 메시지 API의 template object(Feed·Text 등)를 폼으로 편집하고 카카오톡 카드 미리보기 + 발송용 JSON을 내보내는 빌더. 챗봇 SkillResponse와는 별개인 능동 발송(친구톡/알림톡) 카드 디자인용. contract의 message 타입·제약을 공유.",
+      "description": "플레이그라운드 우측 발송 카드 디자이너. 토글로 두 빌더 제공: (1) 친구톡(채널 친구 대상, 비즈메시지) — contract friendtalk 타입, (2) 메시지 템플릿(공유/개인, developers template_object) — contract message 타입. 폼+미리보기+편집 가능한 JSON. 실제 발송은 발신프로필(친구톡)/토큰 확보 후 연결.",
       "position": { "x": 800, "y": 125 },
       "connections": []
     }
@@ -329,10 +329,11 @@
       },
       {
         "id": "d7",
-        "topic": "능동 발송 카드 인터페이스",
-        "choice": "채널 친구 대상 능동(push) 메시지는 카카오 메시지 API의 template object(Feed/Text 등)로 설계하고, 플레이그라운드에 전용 카드 빌더를 둔다",
-        "why": "챗봇 응답(SkillResponse)과 능동 발송(친구톡/알림톡)은 서로 다른 JSON 인터페이스다. 발송 카드를 코드로 손조립하지 않고 폼+미리보기+JSON 내보내기로 디자인하기 위함.",
-        "relatedIds": ["comp-msg-builder", "sys-kakao-api"],
+        "topic": "채널 능동 발송 인터페이스",
+        "choice": "채널 친구 대상 능동(push) 발송은 카카오 비즈메시지 '친구톡'으로 간다. 플레이그라운드에 친구톡 카드 빌더를 두고, developers의 template object(공유/개인)는 보조 도구로 분리.",
+        "why": "이 프로젝트는 '채널' 전용이다. 채널 친구에게 보내는 능동 메시지는 developers.kakao.com 메시지 API(나에게/친구에게, 개인용)가 아니라 비즈메시지 친구톡/알림톡(별도 제품·포맷)이다. 개인 메시지(memo)는 범위 밖이라 제거했다.",
+        "rejected": ["나에게 보내기(memo) API — 개인용이라 채널 목적과 무관"],
+        "relatedIds": ["comp-msg-builder", "sys-kakao-api", "act-user"],
         "decidedBy": "개발자"
       }
     ],
@@ -346,6 +347,11 @@
         "id": "q2",
         "question": "세션을 넘어 유지될 영속 데이터가 필요할 경우 저장소(botUserKey 기반 KV 등) 미결",
         "blockedIds": ["sys-kakao-skill"]
+      },
+      {
+        "id": "q3",
+        "question": "친구톡 실제 발송은 비즈메시지 온보딩(발신프로필 senderKey 등록 + 발송 경로: 카카오 i 커넥트 직접 vs 대행사) 확보 후 가능. 현재 발신프로필 없음 → 발송 봉투·엔드포인트 미확정. 빌더는 콘텐츠 포맷만 선구현.",
+        "blockedIds": ["comp-msg-builder", "sys-kakao-api"]
       }
     ],
     "outOfScope": [
