@@ -2,10 +2,12 @@ import Fastify from "fastify";
 import { skillRoutes } from "./routes/skill.js";
 import { echoRoutes } from "./routes/echo.js";
 
+// 개발에서만 pino-pretty(devDependency) 사용. 프로덕션(컨테이너)에서는 기본 JSON 로깅.
+const isDev = process.env["NODE_ENV"] !== "production";
 const app = Fastify({
-  logger: {
-    transport: { target: "pino-pretty", options: { colorize: true } },
-  },
+  logger: isDev
+    ? { transport: { target: "pino-pretty", options: { colorize: true } } }
+    : true,
 });
 
 // 헬스체크
