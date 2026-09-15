@@ -1,19 +1,23 @@
 import type { SkillBlock } from "../types.js";
 import { basicCard, messageQuickReply, operatorButton, simpleText } from "../../builders/outputs.js";
 import { askA2a } from "../../a2a/client.js";
+import { INTERESTS } from "./onboarding.js";
 
 /**
  * A2A 연동 데모 블록 — **"의료" welfare 키**를 목업 A2A 서비스에 매핑한다.
  *
- * "의료/건강" 발화 시, 외부 A2A 에이전트(목업, SSE 30초)에 질문을 넘겨 최종 답변을 받아 온다.
- * 30초 > 카카오 5초 제한이므로 `callback`으로 처리한다(라우트가 useCallback 플로우로 배선).
- * callbackUrl이 없으면(로컬/콜백 미설정) 동기로 await하고, A2A 실패 시 `respond` 정적 카드로 폴백.
+ * 의료·건강 관련 발화("의료", "건강", "병원", "의료/건강" 등) 시, 외부 A2A 에이전트(목업, SSE
+ * 30초)에 질문을 넘겨 최종 답변을 받아 온다. 30초 > 카카오 5초 제한이므로 `callback`으로 처리한다
+ * (라우트가 useCallback 플로우로 배선). callbackUrl이 없으면(로컬/콜백 미설정) 동기로 await하고,
+ * A2A 실패 시 `respond` 정적 카드로 폴백.
  *
+ * ⚠️ 온보딩 관심분야 선택("의료·건강", 가운뎃점)은 프로필 빌드 흐름이므로 A2A로 가로채지 않는다.
  * welfare 블록보다 먼저 매칭되도록 blocks 배열 앞에 둔다.
  */
 export const a2aConsult: SkillBlock = {
   name: "a2a-consult",
-  match: (ctx) => /^(의료|건강|의료·건강)$/.test(ctx.utterance),
+  match: (ctx) =>
+    !INTERESTS.includes(ctx.utterance) && /의료|건강|병원/.test(ctx.utterance),
 
   // A2A 미가용 시 폴백(정적 안내). 콜백 경로가 정상이면 쓰이지 않는다.
   respond: () => ({
