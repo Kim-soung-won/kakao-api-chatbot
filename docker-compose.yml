@@ -27,6 +27,20 @@ services:
       retries: 3
       start_period: 10s
 
+  # 선택: 카카오 스킬 URL용 임시 HTTPS 터널(cloudflared quick tunnel).
+  #   docker compose --profile tunnel up -d cloudflared
+  #   docker compose logs cloudflared   → https://<랜덤>.trycloudflare.com 확인
+  # ⚠️ quick tunnel URL은 재시작 시 바뀐다(임시). 운영용 고정 URL은 도메인+named tunnel.
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: sprint-kakao-tunnel
+    command: tunnel --no-autoupdate --url http://server:3000
+    depends_on:
+      - server
+    profiles:
+      - tunnel
+    restart: unless-stopped
+
   # 렌더러/빌더 테스트 하니스. nginx 정적 서빙 + /skill·/echo 는 server로 프록시.
   playground:
     build:
