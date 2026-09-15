@@ -4,6 +4,9 @@ import { parseSkillContext, recordTurn, selectBlock } from "../skill/index.js";
 import type { SkillBlock, SkillContext } from "../skill/index.js";
 import { skillPayloadSchema, skillResponseSchema } from "../schemas.js";
 
+/** 콜백 미설정 시 동기 시도 예산(ms). 카카오 5초 제한보다 짧게 잡아 1001 타임아웃을 피한다. */
+const SYNC_BUDGET_MS = Number(process.env["SYNC_BUDGET_MS"] ?? 3500);
+
 /**
  * POST /skill
  * 카카오 스킬 서버 본 엔드포인트.
@@ -91,15 +94,25 @@ function handleCallbackBlock(
     return { version: "2.0", useCallback: true, data: { text: cb.waitingText } };
   }
 
-  // callbackUrl 없음(로컬/콜백 미설정): 동기 await. A2A 실패 시 정적 폴백.
-  return cb
-    .run(ctx)
-    .then(async (response) => {
-      await recordTurn(ctx, block, response);
-      return response;
-    })
-    .catch((err) => {
-      app.log.error({ err, block: block.name }, "sync callback-run failed; fallback");
+  // callbackUrl 없음(콜백 미설정): 카카오 5초 제한 때문에 30초를 붙잡으면 1001 타임아웃이 난다.
+  // → SYNC_BUDGET_MS(카카오 5초보다 짧게) 안에서만 동기 시도하고, 초과하면 즉시 정적 폴백.
+  //   (A2A_DURATION_MS를 예산보다 낮추면 콜백 없이도 실제 A2A 답변을 5초 안에 받을 수 있다.)
+  const timedOut = Symbol("timeout");
+  return Promise.race([
+    cb.run(ctx).catch((err) => {
+      app.log.error({ err, block: block.name }, "sync a2a run failed");
+      return null;
+    }),
+    new Promise<typeof timedOut>((res) => setTimeout(() => res(timedOut), SYNC_BUDGET_MS)),
+  ]).then(async (result) => {
+    if (result === timedOut || result === null) {
+      app.log.warn(
+        { block: block.name, budgetMs: SYNC_BUDGET_MS },
+        "a2a exceeded sync budget without callbackUrl; returning fallback (enable callback for slow A2A)",
+      );
       return block.respond(ctx);
-    });
+    }
+    await recordTurn(ctx, block, result);
+    return result;
+  });
 }
