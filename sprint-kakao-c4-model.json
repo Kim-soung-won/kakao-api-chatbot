@@ -267,6 +267,59 @@
     }
   ],
   "codeElements": [],
+  "deployment": {
+    "schemaVersion": 1,
+    "nodes": [
+      {
+        "id": "env-prod",
+        "name": "운영 (Production)",
+        "nodeType": "environment",
+        "technology": "AWS",
+        "position": { "x": 40, "y": 40 }
+      },
+      {
+        "id": "ec2",
+        "name": "EC2 인스턴스 (Docker Compose)",
+        "nodeType": "node",
+        "parentId": "env-prod",
+        "technology": "AWS EC2 프리티어 (t2.micro · 1 vCPU / 1 GiB) · Ubuntu",
+        "description": "docker compose로 컨테이너 구동. cloudflared 터널(profile: tunnel)로 공개 HTTPS를 노출해 카카오 스킬 웹훅 진입점을 만든다. ⚠️ AWS 프리티어는 t2.micro(1GiB)로, 'small'(t2.small 2GiB)은 유료 — 실제 규격 확인 필요.",
+        "position": { "x": 24, "y": 200 }
+      },
+      {
+        "id": "inst-server",
+        "name": "스킬 서버",
+        "nodeType": "containerInstance",
+        "parentId": "ec2",
+        "containerId": "cont-server",
+        "replicas": 1,
+        "environment": "prod",
+        "description": ":3000, Fastify. cloudflared가 이 컨테이너(server:3000)로 프록시.",
+        "position": { "x": 20, "y": 40 }
+      },
+      {
+        "id": "inst-playground",
+        "name": "플레이그라운드",
+        "nodeType": "containerInstance",
+        "parentId": "ec2",
+        "containerId": "cont-playground",
+        "replicas": 1,
+        "environment": "prod",
+        "description": ":5173→80, nginx 정적 서빙 + /skill·/echo 프록시.",
+        "position": { "x": 20, "y": 150 }
+      },
+      {
+        "id": "inst-captured",
+        "name": "요청 캡처 볼륨",
+        "nodeType": "containerInstance",
+        "parentId": "ec2",
+        "containerId": "cont-captured",
+        "environment": "prod",
+        "description": "Docker 볼륨(./captured-requests → /app/captured-requests). /echo 원문 저장.",
+        "position": { "x": 20, "y": 260 }
+      }
+    ]
+  },
   "designIntent": {
     "personas": ["개발자"],
     "glossary": {
@@ -374,10 +427,9 @@
     "outOfScope": [
       "RAG 백엔드 실제 구현·연동 (다음 단계)",
       "카카오 메시지 발송 API 호출 (현재 미사용)",
-      "code 레벨 분해 (이번 범위 아님)",
-      "deployment(물리) 레이어 — 현재 로컬/터널만 사용"
+      "code 레벨 분해 (이번 범위 아님)"
     ],
-    "nextStep": "/echo 실측으로 요청 계약·context 수명(q1)을 확정한 뒤 저장소 전략(d1/q2) 결론",
-    "lastUpdated": "2026-09-14"
+    "nextStep": "폴백 블록에 RAG 응답 연결(자유 질문 처리) + /echo 실측으로 요청 계약·context 수명(q1) 확정",
+    "lastUpdated": "2026-09-15"
   }
 }

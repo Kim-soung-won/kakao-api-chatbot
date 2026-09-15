@@ -291,7 +291,7 @@ metadata:
 - `itemCard`는 `head`와 `profile`을 **동시 사용 불가**.
 - `commerceCard` 가격: `discountedPrice` 존재 시 타 할인정보 무시, `discountRate`는 `discountedPrice` 동반 필수, 둘 다 있으면 `discountRate` 우선.
 - `textCard`는 `title`/`description` 중 최소 하나 필수.
-- `listCard.items[].title`은 필수.
+- `listCard.items[].title`은 필수. 각 항목은 **클릭 동작(`link` 또는 `action`+`blockId`/`messageText`)이 필수** — 동작 없는 항목은 렌더/등록 시 거부될 수 있다.
 - `version`은 항상 `"2.0"`.
 - 글자 수 제한(요약): `simpleText.text` 1000자, `textCard.description` 400자(캐러셀 128자), `basicCard.description` 230자, `commerceCard` title 30자/desc 40자, `simpleImage.altText` 50자, 버튼 `label` 14자(가로 8자).
 
@@ -357,8 +357,8 @@ SkillResponse
 
 `Output` 유니온에 실제로 타입화·렌더·빌드되는 컴포넌트:
 
-- **구현됨**: `simpleText`, `simpleImage`, `basicCard`, `listCard`, `itemCard`, `carousel`(`type` ∈ `basicCard | listCard | itemCard`, 상수 `CarouselItemType`).
-- **미구현(스펙에는 존재)**: `textCard`, `commerceCard` — `response.ts`의 **`DEFERRED_OUTPUTS = ["textCard", "commerceCard"]`** 상수로 표시. 이 두 컴포넌트는 위 본문에 계약으로 문서화돼 있으나 아직 코드 타입/렌더러/빌더에 없다.
+- **구현됨(8종 전부)**: `simpleText`, `simpleImage`, `textCard`, `basicCard`, `commerceCard`, `listCard`, `itemCard`, `carousel`(`type` ∈ `basicCard | listCard | itemCard | commerceCard`, 상수 `CarouselItemType`).
+- **미구현**: 없음. `response.ts`의 **`DEFERRED_OUTPUTS = []`**. contract 타입·서버 빌더(`textCard`/`commerceCard`)·playground 렌더러(`TextCardView`/`CommerceCardView`)·validate 전 계층에 반영됨.
 
 ### `itemCard` 필드 정합성
 
