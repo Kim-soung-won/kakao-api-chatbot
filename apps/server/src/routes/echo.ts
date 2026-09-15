@@ -2,6 +2,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { FastifyInstance } from "fastify";
 import type { SkillResponse } from "@sprint-kakao/contract";
+import { skillResponseSchema } from "../schemas.js";
 
 const CAPTURE_DIR = join(process.cwd(), "captured-requests");
 
@@ -15,7 +16,19 @@ const CAPTURE_DIR = join(process.cwd(), "captured-requests");
  * 카카오가 뭔가 렌더링하도록 최소 유효 응답을 돌려준다.
  */
 export async function echoRoutes(app: FastifyInstance): Promise<void> {
-  app.post("/echo", async (request) => {
+  app.post(
+    "/echo",
+    {
+      schema: {
+        tags: ["skill"],
+        summary: "실제 카카오 요청 원문 캡처",
+        description:
+          "요청 헤더·본문을 captured-requests/에 저장하고 최소 유효 SkillResponse를 반환한다. 요청 계약(SkillPayload) 실측용.",
+        body: { type: "object", additionalProperties: true },
+        response: { 200: skillResponseSchema },
+      },
+    },
+    async (request) => {
     const ts = new Date().toISOString().replace(/[:.]/g, "-");
     const payload = {
       receivedAt: new Date().toISOString(),
