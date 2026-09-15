@@ -43,6 +43,11 @@ export interface SkillBlock {
    * callbackUrl로 POST, 없으면 `run`을 동기로 await(로컬 데모). `run` 실패 시 `respond`가 폴백.
    */
   callback?: {
+    /**
+     * 선택: 이 요청을 콜백으로 처리할지 결정. 없거나 true면 콜백, false면 동기 respond로.
+     * (예: RAG 검색은 이력이 있을 때만 RAG 호출, 없으면 즉시 안내를 respond로 낸다.)
+     */
+    when?(ctx: SkillContext): boolean;
     /** 대기 응답에 노출할 문구. */
     waitingText: string;
     /** 백그라운드 최종 응답 생성(외부 서버/SSE 호출). */

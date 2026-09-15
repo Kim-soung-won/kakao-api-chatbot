@@ -1,19 +1,27 @@
 import { A2A_ENDPOINT } from "./config.js";
 
+/** A2A/RAG 요청 페이로드 — 단발 질문 또는 대화 이력(RAG 검색). */
+export interface A2aRequest {
+  question?: string;
+  /** RAG 검색: 지금까지의 대화 이력 전체를 그대로 전송. */
+  messages?: { role: string; content: string }[];
+}
+
 /**
- * 목업/실제 A2A 서비스에 질문을 보내고 **SSE 스트림을 끝까지 소비**해 최종 답변을 반환한다.
+ * 목업/실제 A2A(RAG) 서비스에 요청을 보내고 **SSE 스트림을 끝까지 소비**해 최종 답변을 반환한다.
  *
  * 카카오 챗봇 말풍선은 토큰 단위 실시간 스트리밍을 지원하지 않으므로, 여기서 스트림을 전부
  * 모아 하나의 완성 텍스트로 만든다(그 결과를 콜백으로 1회 전송). onDelta로 진행 로깅은 가능.
  */
 export async function askA2a(
-  question: string,
+  input: A2aRequest | string,
   onDelta?: (delta: string) => void,
 ): Promise<string> {
+  const body: A2aRequest = typeof input === "string" ? { question: input } : input;
   const res = await fetch(A2A_ENDPOINT, {
     method: "POST",
     headers: { "content-type": "application/json", accept: "text/event-stream" },
-    body: JSON.stringify({ question }),
+    body: JSON.stringify(body),
   });
   if (!res.ok || !res.body) throw new Error(`A2A 요청 실패: ${res.status}`);
 

@@ -259,7 +259,7 @@
         },
         {
           "targetId": "comp-a2a",
-          "label": "콜백 블록(의료) 처리"
+          "label": "RAG 검색 콜백 처리"
         }
       ]
     },
@@ -377,12 +377,12 @@
     },
     {
       "id": "comp-a2a",
-      "name": "A2A 연동 (client·mock)",
+      "name": "RAG/A2A 연동 (client·mock)",
       "type": "component",
       "systemId": "sys-kakao-skill",
       "containerId": "cont-server",
       "technology": "typescript",
-      "description": "외부 A2A/RAG 에이전트를 SSE로 호출해 최종 답변을 수신(client.ts). 실제 백엔드 전까지 MSW 목업(mock.ts, 30초 SSE)으로 대체. \"의료\" welfare 키가 이 경로를 사용하며, 5초 초과라 카카오 콜백(useCallback)으로 최종 응답을 callbackUrl에 POST.",
+      "description": "외부 RAG/A2A 에이전트를 SSE로 호출해 최종 답변을 수신(client.ts). 실제 백엔드 전까지 MSW 목업(mock.ts, 30초 SSE). \"RAG 검색\" 발화가 이 경로를 사용 — 지금까지의 대화 이력 전체를 RAG로 전송해 답변을 받는다. 5초 초과라 카카오 콜백(useCallback)으로 최종 응답을 callbackUrl에 POST.",
       "position": {
         "x": 700,
         "y": 150
@@ -390,7 +390,7 @@
       "connections": [
         {
           "targetId": "sys-rag",
-          "label": "질문 POST → SSE 스트림 수신 (실연동)",
+          "label": "대화 이력(messages) POST → SSE 스트림 수신",
           "technology": "http/sse"
         }
       ]
@@ -611,16 +611,18 @@
       },
       {
         "id": "d11",
-        "topic": "느린 외부 응답(A2A/RAG)은 카카오 콜백으로",
-        "choice": "5초를 넘는 A2A/RAG 처리는 useCallback으로 즉시 대기응답 후 callbackUrl로 최종 POST. SSE는 서버에서 소비해 완성 텍스트로 1회 전송(카톡 실시간 스트리밍 미지원). 실제 백엔드 전까지 MSW로 30초 SSE 목업.",
-        "why": "카카오 스킬 응답 제한이 5초라 LLM/RAG/A2A를 동기로 못 받는다. 콜백이 유일한 우회로(유효 1분·1회). 카톡 말풍선은 토큰 스트리밍을 지원하지 않으므로 SSE는 서버가 끝까지 모아 최종본만 보낸다. 목업(MSW)으로 파이프라인을 백엔드 없이 검증.",
+        "topic": "RAG 검색을 A2A/RAG 콜백에 연결",
+        "choice": "A2A/콜백 연동은 특정 welfare 키워드가 아니라 \"RAG 검색\" 발화에 연결한다. RAG 검색 시 누적 대화 이력 전체를 RAG(A2A)로 전송, 5초 초과라 useCallback으로 즉시 대기응답 후 callbackUrl로 최종 POST. SSE는 서버가 끝까지 소비해 완성 텍스트 1회 전송. 실제 백엔드 전까지 MSW 30초 SSE 목업.",
+        "why": "RAG 검색의 본래 의도가 \"지금까지 대화를 RAG 서버로 보내 답변받기\"이므로 그 트리거에 직접 연결하는 것이 자연스럽다. 카카오 5초 제한 때문에 콜백이 유일한 우회로(유효 1분·1회). 콜백 미설정 시 SYNC_BUDGET_MS(3.5s) 내 동기 시도 후 폴백해 1001 타임아웃을 피한다.",
         "rejected": [
+          "특정 welfare 키워드(의료 등)에 매핑",
           "동기 응답(5초 초과로 불가)",
           "토큰 실시간 스트리밍(카카오 미지원)"
         ],
         "relatedIds": [
           "comp-a2a",
           "comp-skill-route",
+          "comp-history",
           "sys-rag"
         ],
         "decidedBy": "개발자"

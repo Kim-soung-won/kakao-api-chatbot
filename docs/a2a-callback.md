@@ -7,12 +7,14 @@
 
 ## 매핑
 
-| welfare 키(발화) | 블록 | 처리 |
+| 발화 | 블록 | 처리 |
 | --- | --- | --- |
-| `의료` · `건강` · `의료·건강` | `a2a-consult` | 외부 A2A 호출(SSE) → 콜백으로 최종 답변 |
+| `RAG 검색` (이력 있음) | `rag-search` | **대화 이력 전체를 RAG(A2A)로 전송**(SSE) → 콜백으로 최종 답변 |
+| `RAG 검색` (이력 없음) | `rag-search` | 콜백 없이 즉시 안내(+수신 진단) |
 
-`a2aConsult` 블록은 `welfare`보다 **앞에** 등록돼 "의료/건강"을 가로챈다. 그 외 welfare 키
-(보육료·교육활동비 등)는 기존대로 즉시 동기 응답.
+A2A/콜백은 **`RAG 검색`에만** 연결돼 있다(특정 welfare 키워드에는 매핑하지 않음). `의료` 등
+welfare 키는 기존대로 정적 카드로 즉시 응답한다. `rag-search`는 `callback.when(이력>0)`으로
+이력이 있을 때만 RAG를 호출한다.
 
 ## 왜 콜백인가 — 카카오 5초 제한
 
@@ -20,12 +22,12 @@
 카카오 **콜백**으로 우회한다:
 
 ```
-사용자 "의료"
+사용자 "RAG 검색"
    │
    ▼  POST /skill                     (카카오 → 우리 서버)
-[즉시] useCallback 대기응답 반환  { "version":"2.0","useCallback":true,"data":{"text":"…준비 중…"} }
+[즉시] useCallback 대기응답 반환  { "version":"2.0","useCallback":true,"data":{"text":"…검색 중…"} }
    │
-   ├─ (백그라운드) A2A 서비스 호출 → SSE 스트림 끝까지 수신 → 최종 답변 조립
+   ├─ (백그라운드) 대화 이력 전체를 RAG(A2A)로 POST → SSE 스트림 끝까지 수신 → 최종 답변 조립
    │
    ▼  POST userRequest.callbackUrl     (우리 서버 → 카카오, 유효 1분·1회)
 [최종] 완성된 SkillResponse            → 카카오가 채팅방에 렌더
@@ -47,9 +49,9 @@ A2A는 SSE로 토큰을 흘리지만, **카카오 챗봇 말풍선은 토큰 실
 | --- | --- |
 | `a2a/config.ts` | 엔드포인트(`A2A_ENDPOINT`)·목업 시간(`A2A_DURATION_MS`, 기본 30s)·`A2A_MOCK` 토글 |
 | `a2a/mock.ts` | **MSW** 목업 — `A2A_ENDPOINT` POST를 가로채 SSE로 토큰을 흘리다 30초에 완료 |
-| `a2a/client.ts` | `askA2a()` — A2A에 질문 POST, **SSE 스트림 소비**해 최종 답변 반환 |
-| `skill/blocks/a2a.ts` | `의료` 키 매핑 블록. `callback.run`이 `askA2a` 호출, `respond`는 폴백 |
-| `routes/skill.ts` | 콜백 블록 감지 → useCallback ack + 백그라운드 run → `callbackUrl` POST |
+| `a2a/client.ts` | `askA2a()` — A2A/RAG에 요청 POST(대화 이력 messages 포함), **SSE 스트림 소비**해 최종 답변 반환 |
+| `skill/blocks/rag-search.ts` | `RAG 검색` 블록. `callback.run`이 대화 이력을 `askA2a`로 전송, `respond`는 이력없음/폴백 |
+| `routes/skill.ts` | 콜백 블록 감지(`callback.when`) → useCallback ack + 백그라운드 run → `callbackUrl` POST. 콜백 없으면 `SYNC_BUDGET_MS`(3.5s) 내 동기 시도 후 폴백 |
 | `routes/callback-sink.ts` | **디버그** 로컬 콜백 수신함(실카카오 없이 콜백 테스트용) |
 
 ## 로컬 테스트
@@ -60,22 +62,22 @@ A2A는 SSE로 토큰을 흘리지만, **카카오 챗봇 말풍선은 토큰 실
 # 서버 (목업 A2A 1.5초로 단축)
 A2A_DURATION_MS=1500 pnpm --filter @sprint-kakao/server dev
 
-# 콜백 경로: ack 즉시 → 1.5초 후 sink에 최종 응답 도착
-curl -s localhost:3000/skill -H 'content-type: application/json' -d '{
-  "userRequest":{"utterance":"의료","user":{"id":"u1"},
-  "callbackUrl":"http://localhost:3000/callback-sink?id=t1"},"bot":{},"action":{}}'
-#  → {"version":"2.0","useCallback":true,"data":{"text":"…준비 중…"}}
-sleep 2
-curl -s 'localhost:3000/callback-sink?id=t1'   # payload에 최종 A2A 답변
+# 대화 몇 턴 쌓기(이력 생성)
+curl -s localhost:3000/skill -H 'content-type: application/json' -d '{"userRequest":{"utterance":"이용안내","user":{"id":"u1"}},"bot":{},"action":{}}' >/dev/null
+curl -s localhost:3000/skill -H 'content-type: application/json' -d '{"userRequest":{"utterance":"보육료","user":{"id":"u1"}},"bot":{},"action":{}}' >/dev/null
 
-# 동기 폴백(콜백 미지정): 1.5초 블로킹 후 최종 답변 직접 반환
+# RAG 검색 콜백 경로: ack 즉시 → 1.5초 후 sink에 RAG 답변
 curl -s localhost:3000/skill -H 'content-type: application/json' -d '{
-  "userRequest":{"utterance":"의료","user":{"id":"u2"}},"bot":{},"action":{}}'
+  "userRequest":{"utterance":"RAG 검색","user":{"id":"u1"},
+  "callbackUrl":"http://localhost:3000/callback-sink?id=t1"},"bot":{},"action":{}}'
+#  → {"version":"2.0","useCallback":true,"data":{"text":"…검색 중…"}}
+sleep 2
+curl -s 'localhost:3000/callback-sink?id=t1'   # payload에 최종 RAG 답변(대화 N턴 참고)
 ```
 
 ## 실연동으로 넘어갈 때
 
-- `A2A_MOCK=0` + `A2A_ENDPOINT=<실제 A2A URL>` 로 목업을 끄고 실제 서버에 붙인다. `client.ts`의
-  SSE 파싱은 그대로 재사용(프레이밍이 다르면 파서만 조정).
-- 실서비스는 카카오 콜백 활성화가 필수(그래야 `callbackUrl` 수신). `callback-sink`는 디버그 전용.
-- 다른 welfare 키도 같은 패턴으로 A2A에 매핑 가능(블록에 `callback` 추가).
+- `A2A_MOCK=0` + `A2A_ENDPOINT=<실제 RAG/A2A URL>` 로 목업을 끄고 실제 서버에 붙인다. `client.ts`가
+  대화 이력(messages)을 POST하고 SSE를 소비 — 프레이밍이 다르면 파서만 조정.
+- 실서비스는 카카오 콜백 활성화가 필수(그래야 `callbackUrl` 수신). 콜백 없으면 30초는 5초 제한에
+  걸리므로 폴백만 뜬다(`A2A_DURATION_MS`를 낮추면 콜백 없이도 동기로 받을 수 있음). `callback-sink`는 디버그 전용.

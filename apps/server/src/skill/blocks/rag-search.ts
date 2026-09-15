@@ -2,15 +2,16 @@ import type { SkillBlock } from "../types.js";
 import type { HistoryTurn } from "../history.js";
 import { TEXT_LIMITS } from "@sprint-kakao/contract";
 import { messageQuickReply, simpleText } from "../../builders/outputs.js";
+import { askA2a } from "../../a2a/client.js";
 
 /**
- * RAG 검색 블록 — RAG 백엔드 연동 전, **대화 이력 전송 파이프라인을 검증**하는 데모.
+ * RAG 검색 블록 — 지금까지의 **대화 이력 전체를 RAG(A2A) 서비스로 전송**해 답변을 받아 온다.
  *
- * botUserKey별 파일 저장소(captured-requests/history/)에 누적된 지금까지의 대화(ctx.history)를
- * 그대로 답변 말풍선에 그려, "RAG 서비스가 붙었을 때 전 대화 이력을 그 서버로 넘길 수 있는가"를
- * 눈으로 확인한다. 실제 연동 시엔 이 자리에서 아래 `ragRequest`를 RAG 서버로 POST하면 된다.
+ * 이력이 있으면 콜백 플로우로 처리: 즉시 대기응답 후 백그라운드에서 RAG 호출(목업 SSE 30초) →
+ * 최종 답변을 callbackUrl로 POST. 콜백 미설정이면 예산 내 동기 시도 후 폴백(로컬 이력 표시).
+ * 이력이 없으면 콜백 없이 즉시 안내(+수신 진단)를 respond로 낸다.
  *
- * transient=true — 이 메타 명령 자체는 이력에 남기지 않는다(이력 오염 방지).
+ * transient=true — 이 메타 명령 자체는 대화 이력에 남기지 않는다.
  */
 
 const ROLE_LABEL: Record<HistoryTurn["role"], string> = {
@@ -24,32 +25,13 @@ const RAG_QUICK_REPLIES = [
   messageQuickReply("RAG 검색", "RAG 검색"),
 ];
 
-/**
- * 진단 — 서버가 이번 요청에서 실제로 받은 contexts와 botUserKey를 요약한다.
- * 파일 저장소 채택 근거(카카오 output context 왕복 미동작 + user.id 안정성)를 실카톡에서
- * 언제든 재확인하기 위한 계측. 이력이 비었을 때만 노출한다.
- */
-function diagnoseIncoming(raw: unknown): string {
-  const b = raw as
-    | { contexts?: unknown; userRequest?: { contexts?: unknown; user?: { id?: unknown } } }
-    | undefined;
-  const top = Array.isArray(b?.contexts) ? (b!.contexts as unknown[]) : null;
-  const nested = Array.isArray(b?.userRequest?.contexts)
-    ? (b!.userRequest!.contexts as unknown[])
-    : null;
-  const names = [...(top ?? []), ...(nested ?? [])]
-    .map((c) => (c as { name?: unknown } | null)?.name)
-    .filter((n): n is string => typeof n === "string");
-  const uid = b?.userRequest?.user?.id;
-  return (
-    `🩺 수신 진단\n` +
-    `· 최상위 contexts: ${top ? `${top.length}개` : "필드 없음"}\n` +
-    `· userRequest.contexts: ${nested ? `${nested.length}개` : "필드 없음"}\n` +
-    `· 컨텍스트 이름: ${names.length ? names.join(", ") : "(없음)"}\n` +
-    `· user.id: ${typeof uid === "string" && uid ? uid : "(없음)"}\n\n` +
-    `contexts가 계속 0/빈 값이면 카카오가 output context를 왕복하지 않는 것(→ 파일 저장소 사용). ` +
-    `user.id가 매턴 동일하면 이력 키로 안정적.`
-  );
+/** 이력을 RAG 요청 페이로드로. 실제 RAG 서버로 그대로 POST할 형태. */
+function buildRagRequest(history: HistoryTurn[]) {
+  return {
+    turnCount: history.length,
+    userTurns: history.filter((t) => t.role === "user").length,
+    messages: history.map((t) => ({ role: t.role, content: t.text })),
+  };
 }
 
 /** 이력을 사람이 읽을 대화록으로. simpleText 한도(1000자)를 넘으면 앞부분을 자른다. */
@@ -62,21 +44,42 @@ function transcript(history: HistoryTurn[]): string {
   return "…(이전 생략)\n" + body.slice(body.length - (limit - 20));
 }
 
+/**
+ * 진단 — 서버가 이번 요청에서 실제로 받은 contexts와 botUserKey를 요약(이력 없을 때만).
+ * 카카오 output context 왕복 미동작 + 파일 저장소 채택 근거를 언제든 재확인하기 위한 계측.
+ */
+function diagnoseIncoming(raw: unknown): string {
+  const b = raw as
+    | { contexts?: unknown; userRequest?: { contexts?: unknown; user?: { id?: unknown } } }
+    | undefined;
+  const top = Array.isArray(b?.contexts) ? (b!.contexts as unknown[]) : null;
+  const nested = Array.isArray(b?.userRequest?.contexts)
+    ? (b!.userRequest!.contexts as unknown[])
+    : null;
+  const uid = b?.userRequest?.user?.id;
+  return (
+    `🩺 수신 진단\n` +
+    `· 최상위 contexts: ${top ? `${top.length}개` : "필드 없음"}\n` +
+    `· userRequest.contexts: ${nested ? `${nested.length}개` : "필드 없음"}\n` +
+    `· user.id: ${typeof uid === "string" && uid ? uid : "(없음)"}`
+  );
+}
+
 export const ragSearch: SkillBlock = {
   name: "rag-search",
   transient: true,
   match: (ctx) => /^rag\s*(검색|search)$/i.test(ctx.utterance),
-  respond: (ctx) => {
-    const history = ctx.history;
 
-    if (history.length === 0) {
+  // 콜백 폴백 / 이력 없음 경로.
+  respond: (ctx) => {
+    if (ctx.history.length === 0) {
       return {
         version: "2.0",
         template: {
           outputs: [
             simpleText(
               "아직 RAG 서버로 보낼 대화 이력이 없어요.\n" +
-                "먼저 몇 마디 주고받은 뒤 다시 'RAG 검색'을 입력하면, 지금까지의 대화를 그대로 보여드려요.",
+                "먼저 몇 마디 주고받은 뒤 다시 'RAG 검색'을 입력해 주세요.",
             ),
             simpleText(diagnoseIncoming(ctx.raw)),
           ],
@@ -84,29 +87,43 @@ export const ragSearch: SkillBlock = {
         },
       };
     }
-
-    // 실제 RAG 서비스로 그대로 POST할 요청 페이로드(파일 저장소에서 로드한 전체 이력).
-    const ragRequest = {
-      turnCount: history.length,
-      userTurns: history.filter((t) => t.role === "user").length,
-      messages: history.map((t) => ({ role: t.role, content: t.text })),
-    };
-
+    // 콜백 미설정 + 예산 초과 / RAG 실패 시 폴백: 로컬 이력이라도 그려준다.
+    const ragRequest = buildRagRequest(ctx.history);
     return {
       version: "2.0",
       template: {
         outputs: [
           simpleText(
-            `🔎 RAG 서버 전송 시뮬레이션\n` +
-              `누적된 대화 ${history.length}턴(사용자 ${ragRequest.userTurns}턴)을 RAG 서비스로 전송합니다.\n` +
-              `RAG 백엔드가 붙으면 아래 대화 이력이 그대로 그 서버로 POST됩니다.`,
+            `🔎 (RAG 서버 응답 지연/미설정) 지금까지의 대화 ${ragRequest.turnCount}턴을 로컬에 표시합니다.\n` +
+              `실제 답변을 받으려면 콜백을 활성화하거나 A2A_DURATION_MS를 낮추세요.`,
           ),
-          simpleText(transcript(history)),
+          simpleText(transcript(ctx.history)),
         ],
         quickReplies: RAG_QUICK_REPLIES,
       },
-      // 원문 JSON 토글에서 확인 가능 — 이 객체가 곧 RAG 서버로 넘길 요청 바디다.
       data: { ragRequest },
     };
+  },
+
+  // 이력이 있을 때만 콜백으로 RAG 호출.
+  callback: {
+    when: (ctx) => ctx.history.length > 0,
+    waitingText: "지금까지의 대화를 RAG로 검색하고 있어요… 잠시만 기다려 주세요 🔎",
+    run: async (ctx) => {
+      const ragRequest = buildRagRequest(ctx.history);
+      const answer = await askA2a({
+        question: [...ctx.history].reverse().find((t) => t.role === "user")?.text,
+        messages: ragRequest.messages,
+      });
+      return {
+        version: "2.0",
+        template: {
+          outputs: [simpleText(answer)],
+          quickReplies: RAG_QUICK_REPLIES,
+        },
+        // 원문 JSON 토글에서 확인 — RAG 서버로 넘긴 요청 바디.
+        data: { ragRequest },
+      };
+    },
   },
 };

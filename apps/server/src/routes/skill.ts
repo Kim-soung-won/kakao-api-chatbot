@@ -35,7 +35,7 @@ export async function skillRoutes(app: FastifyInstance): Promise<void> {
       const ctx = await parseSkillContext(request.body);
       const block = selectBlock(ctx);
 
-      if (block.callback) {
+      if (block.callback && (block.callback.when?.(ctx) ?? true)) {
         return handleCallbackBlock(app, block, ctx);
       }
 

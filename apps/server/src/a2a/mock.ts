@@ -14,15 +14,23 @@ import { A2A_DURATION_MS, A2A_ENDPOINT } from "./config.js";
  * 매칭 안 되는 요청(카카오 callbackUrl POST 등)은 bypass로 실제 네트워크로 흘린다.
  */
 
-/** 발화 주제에 따라 만들어낼 목업 답변 문단(실제 RAG 답변 자리). */
-function mockAnswer(question: string): string {
+interface A2aBody {
+  question?: string;
+  messages?: { role?: string; content?: string }[];
+}
+
+/** RAG 검색 목업 답변 — 넘겨받은 대화 이력을 참고했다는 티를 내며 답변 문단을 만든다. */
+function mockAnswer(body: A2aBody): string {
+  const messages = Array.isArray(body.messages) ? body.messages : [];
+  const lastUser = [...messages].reverse().find((m) => m.role === "user")?.content;
+  const topic = lastUser ?? body.question ?? "(대화 없음)";
   return (
-    `【AI 상담 결과】\n"${question}"에 대한 안내입니다.\n\n` +
+    `【RAG 답변】\n대화 ${messages.length}턴을 참고해 답변드립니다.\n` +
+    `최근 관심: "${topic}"\n\n` +
     `• 대상: 강서구 거주 다문화가정 (국적 무관)\n` +
-    `• 의료비: 본인부담금 일부 지원, 건강보험 미가입자 진료 연계\n` +
-    `• 건강검진: 연 1회 무료 (다국어 문진표 제공)\n` +
-    `• 심리상담: 통역 동반 상담 예약 가능\n\n` +
-    `신청은 다문화가족지원센터(☎ 02-000-0000)로 문의하세요.`
+    `• 관련 지원: 보육료·교육활동비·한국어교육·취업·의료·주거\n` +
+    `• 신청: 서류 준비 → 방문/온라인 접수 → 자격 심사 → 지급/이용\n\n` +
+    `자세한 안내는 다문화가족지원센터(☎ 02-000-0000)로 문의하세요.`
   );
 }
 
@@ -33,8 +41,8 @@ function tokenize(text: string): string[] {
 
 const handlers = [
   http.post(A2A_ENDPOINT, async ({ request }) => {
-    const body = (await request.json().catch(() => ({}))) as { question?: string };
-    const tokens = tokenize(mockAnswer(body.question ?? "(빈 질문)"));
+    const body = (await request.json().catch(() => ({}))) as A2aBody;
+    const tokens = tokenize(mockAnswer(body));
     const perToken = Math.max(1, Math.floor(A2A_DURATION_MS / (tokens.length + 1)));
     const encoder = new TextEncoder();
 

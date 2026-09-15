@@ -95,15 +95,19 @@
 
 `RAG 검색` 렌더 시엔 추가로, 대화록 말풍선이 `simpleText` 1000자 한도를 넘으면 앞부분을 자른다.
 
-## `RAG 검색`이 만들어내는 것
+## `RAG 검색`이 하는 일
 
-파일에서 로드한 이력으로 두 가지를 낸다 (`blocks/rag-search.ts`):
+파일에서 로드한 이력(`ctx.history`)을 **RAG(A2A) 서비스로 전송**해 답변을 받아 온다
+(`blocks/rag-search.ts`). RAG 호출은 30초라 카카오 콜백으로 처리 → 상세 흐름은
+[a2a-callback.md](./a2a-callback.md).
 
-1. **말풍선 2개** — ①전송 요약(누적 N턴, 사용자 N턴) ②대화록 전문(사람이 읽는 형태).
-2. **`response.data.ragRequest`** — 실제 RAG 서버로 그대로 POST할 요청 바디.
+- **이력 있음**: 콜백으로 대화 이력 전체(`ragRequest.messages`)를 RAG에 POST → 최종 답변을
+  `callbackUrl`로 전달. `response.data.ragRequest`에 전송 바디도 실어 확인 가능.
+- **이력 없음**: 콜백 없이 즉시 "먼저 몇 마디 주고받으라"는 안내(+수신 진단)를 낸다.
+- **콜백 미설정/지연**: 예산(3.5s) 초과 시 폴백으로 로컬 이력(대화록)을 표시.
 
 ```jsonc
-// data.ragRequest — 실연동 시 이게 RAG 백엔드로 넘어간다
+// data.ragRequest — RAG 백엔드로 넘어가는 요청 바디(대화 이력 전체)
 {
   "turnCount": 6,
   "userTurns": 3,
@@ -114,8 +118,6 @@
   ]
 }
 ```
-
-이력이 아직 없으면(`history.length === 0`) "먼저 몇 마디 주고받은 뒤 다시 눌러라"는 안내를 낸다.
 
 ## 로컬(플레이그라운드) 테스트
 
