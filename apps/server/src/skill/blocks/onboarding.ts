@@ -1,7 +1,7 @@
 import type { SkillResponse } from "@sprint-kakao/contract";
 import type { SkillBlock } from "../types.js";
 import { messageQuickReply, simpleText } from "../../builders/outputs.js";
-import { welfareResponse } from "./welfare.js";
+import { welfareMenu } from "./welfare.js";
 
 /** 온보딩 시나리오 단계별 선택지. */
 export const REGIONS = ["화곡동", "등촌동", "가양동", "마곡동"];
@@ -60,7 +60,7 @@ export const onboarding: SkillBlock = {
         [...INTERESTS, "완료"],
       );
     }
-    // INTERESTS 선택 또는 "완료" → 맞춤 결과(복지 캐러셀 재사용)
-    return welfareResponse();
+    // INTERESTS 선택 또는 "완료" → 맞춤 복지 메뉴
+    return welfareMenu();
   },
 };

@@ -1,8 +1,8 @@
 import type { SkillBlock } from "../types.js";
 import { exit } from "./exit.js";
 import { onboarding } from "./onboarding.js";
+import { help } from "./help.js";
 import { welfare } from "./welfare.js";
-import { demos } from "./demos.js";
 import { fallback } from "./fallback.js";
 
 /**
@@ -13,7 +13,7 @@ import { fallback } from "./fallback.js";
  *   스킬을 호출하지 않으므로(자동발송 미동작), 진입 인사는 챗봇이 아니라
  *   채널 친구추가 메시지(채널 레이어)로 처리한다. (docs/blocks.md 참고)
  */
-export const blocks: SkillBlock[] = [exit, onboarding, welfare, demos];
+export const blocks: SkillBlock[] = [exit, onboarding, help, welfare];
 
 /** 폴백 블록은 항상 마지막 안전망. */
 export { fallback };

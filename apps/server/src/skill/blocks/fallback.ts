@@ -12,7 +12,7 @@ export const fallback: SkillBlock = {
   respond: (ctx) =>
     wrap([
       simpleText(
-        `받은 발화: "${ctx.utterance || "(빈 발화)"}"\n\n아래 바로가기로 데모를 골라보세요.\n(실서비스에선 이 자리에 RAG 답변이 들어갑니다.)`,
+        `"${ctx.utterance || "(빈 발화)"}"에 대한 안내를 찾고 있어요.\n아래에서 복지 항목을 선택하거나 다시 질문해 주세요.\n(실서비스에선 이 자리에 RAG 답변이 들어갑니다.)`,
       ),
     ]),
 };

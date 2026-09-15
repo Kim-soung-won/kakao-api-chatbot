@@ -1,21 +1,19 @@
 import type { Output, SkillResponse } from "@sprint-kakao/contract";
 import { messageQuickReply } from "../builders/outputs.js";
 
-/** 데모 탐색용 공통 바로가기(footer). */
-export const DEMO_QUICK_REPLIES = [
-  messageQuickReply("맞춤안내 시작", "맞춤복지"),
-  messageQuickReply("복지카드", "복지"),
-  messageQuickReply("카드", "카드"),
-  messageQuickReply("리스트", "리스트"),
-  messageQuickReply("이미지", "이미지"),
-  messageQuickReply("캐러셀", "캐러셀"),
-  messageQuickReply("⚠️위반", "위반"),
+/** 복지 안내 공통 바로가기(폴백 등에서 노출). */
+export const NAV_QUICK_REPLIES = [
+  messageQuickReply("이용안내", "이용안내"),
+  messageQuickReply("맞춤복지", "맞춤복지"),
+  messageQuickReply("복지 안내", "복지"),
+  messageQuickReply("보육료", "보육료"),
+  messageQuickReply("교육활동비", "교육활동비"),
+  messageQuickReply("한국어교육", "한국어교육"),
+  messageQuickReply("취업지원", "취업"),
+  messageQuickReply("신청 절차", "신청 절차"),
 ];
 
-/** outputs를 공통 바로가기와 함께 SkillResponse로 감싼다. */
+/** outputs를 복지 네비 바로가기와 함께 SkillResponse로 감싼다. */
 export function wrap(outputs: Output[]): SkillResponse {
-  return { version: "2.0", template: { outputs, quickReplies: DEMO_QUICK_REPLIES } };
+  return { version: "2.0", template: { outputs, quickReplies: NAV_QUICK_REPLIES } };
 }
-
-export const IMG_2_1 = "https://placehold.co/800x400/png";
-export const IMG_1_1 = "https://placehold.co/400x400/png";
