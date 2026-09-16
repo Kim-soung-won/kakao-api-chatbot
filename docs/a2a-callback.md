@@ -1,9 +1,14 @@
 # A2A(외부 에이전트) 연동 — SSE 수신 + 카카오 콜백
 
-> 특정 welfare 키를 **외부 A2A/RAG 서비스**에 매핑해, 그 서버의 응답을 받아 카카오 SkillResponse로
-> 되돌리는 파이프라인. 5초를 넘는 처리는 카카오 **콜백(useCallback)**으로 배선한다.
-> 실제 백엔드가 없으므로 **MSW로 30초 SSE 목업 A2A**를 세워 흐름만 검증한다.
-> 코드: `apps/server/src/a2a/*`, `skill/blocks/a2a.ts`, `routes/skill.ts`.
+> `RAG 검색` 발화를 **외부 A2A/RAG 에이전트**에 연결해, 대화 이력을 보내고 그 응답을 카카오
+> SkillResponse로 되돌리는 파이프라인. 5초를 넘는 처리는 카카오 **콜백(useCallback)**으로 배선한다.
+> 코드: `apps/server/src/a2a/*`, `skill/blocks/rag-search.ts`, `routes/skill.ts`.
+>
+> ## ⚠️ 현재 A2A 경로는 임시 테스트/목업이다
+> 지금 연결된 A2A 엔드포인트(llamon 콘텐츠 창작 데모 에이전트)와 이 A2A 배선 전체는 **임시**이며,
+> **추후 실제 도메인(복지) RAG 백엔드가 추가될 자리를 위한 목업**이다. `RAG 검색`이 A2A 응답을
+> 카카오에 표출하는 흐름을 눈으로 확인하려고 **기본값으로 고정**해 둔 것뿐. 실제 RAG가 준비되면
+> `A2A_ENDPOINT`/`A2A_PROTOCOL`/`A2A_AUTH`(env)만 교체하면 된다(코드 변경 불필요).
 
 ## 매핑
 

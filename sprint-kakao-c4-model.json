@@ -92,10 +92,10 @@
     },
     {
       "id": "sys-rag",
-      "name": "RAG 백엔드 (A2A 서버)",
+      "name": "RAG 백엔드 (A2A · 임시 목업)",
       "type": "system",
       "technology": "python",
-      "description": "Google ADK toA2a 기반 A2A 서버(16.16.208.36:8000). JSON-RPC message/stream + SSE. RAG 에이전트(google-adk-agent)가 문서 검색 기반으로 답한다. 백엔드는 vLLM.",
+      "description": "⚠️ 임시 테스트/목업 — 추후 실제 복지 도메인 RAG 백엔드로 교체 예정. 현재는 외부 데모 A2A 에이전트(llamon, REST+SSE)에 고정 연결돼 \"RAG 검색\"이 대화 이력을 보내 답변을 받는다. A2A_ENDPOINT/A2A_PROTOCOL/A2A_AUTH(env)만 바꾸면 실제 RAG로 전환. SSE 프로토콜은 rest(llamon)·jsonrpc(Google ADK) 모두 지원.",
       "position": {
         "x": 1200,
         "y": 0
@@ -382,7 +382,7 @@
       "systemId": "sys-kakao-skill",
       "containerId": "cont-server",
       "technology": "typescript",
-      "description": "실제 A2A 서버(Google ADK, JSON-RPC message/stream + SSE)에 질의하고 스트림을 소비해 최종 답변을 받는다(client.ts). \"RAG 검색\"이 대화 이력을 텍스트로 합쳐 전송. 오프라인은 MSW 목업(mock.ts, 같은 A2A 프레이밍). 5초 초과라 카카오 콜백(useCallback)으로 최종 응답을 callbackUrl에 POST.",
+      "description": "외부 A2A/RAG 에이전트에 SSE로 질의하고 스트림을 소비해 최종 답변을 받는다(client.ts). rest({message}+Bearer)·jsonrpc(message/stream) 두 프로토콜 지원, [DONE]/final에서 종료. \"RAG 검색\"이 대화 이력을 텍스트로 합쳐 전송. ⚠️ 현재 엔드포인트는 임시 테스트(llamon 데모) — 추후 실제 RAG로 교체. 오프라인은 MSW 목업. 5초 초과라 카카오 콜백으로 최종 응답 POST.",
       "position": {
         "x": 700,
         "y": 150
@@ -613,7 +613,7 @@
         "id": "d11",
         "topic": "RAG 검색을 A2A/RAG 콜백에 연결",
         "choice": "A2A/콜백은 \"RAG 검색\" 발화에 연결. RAG 검색 시 누적 대화 이력을 실제 A2A 서버(Google ADK, JSON-RPC message/stream+SSE)로 전송, 5초 초과라 useCallback으로 대기응답 후 callbackUrl로 최종 POST. SSE는 서버가 끝까지 소비해 완성 텍스트 1회 전송. 오프라인은 MSW 목업(동일 프레이밍).",
-        "why": "RAG 검색의 본래 의도가 \"지금까지 대화를 RAG 서버로 보내 답변받기\"이므로 그 트리거에 직접 연결하는 것이 자연스럽다. 카카오 5초 제한 때문에 콜백이 유일한 우회로(유효 1분·1회). 콜백 미설정 시 SYNC_BUDGET_MS(3.5s) 내 동기 시도 후 폴백해 1001 타임아웃을 피한다.",
+        "why": "RAG 검색의 본래 의도가 \"지금까지 대화를 RAG 서버로 보내 답변받기\"이므로 그 트리거에 직접 연결하는 것이 자연스럽다. 카카오 5초 제한 때문에 콜백이 유일한 우회로(유효 1분·1회). 콜백 미설정 시 SYNC_BUDGET_MS(3.5s) 내 동기 시도 후 폴백해 1001 타임아웃을 피한다. ⚠️ 현재 연결된 A2A 에이전트(llamon)와 이 경로는 임시 테스트/목업이며, 추후 실제 복지 RAG 백엔드가 추가될 자리다. RAG 검색이 A2A 응답을 카카오에 표출하는 흐름 확인용으로 기본값 고정.",
         "rejected": [
           "특정 welfare 키워드(의료 등)에 매핑",
           "동기 응답(5초 초과로 불가)",

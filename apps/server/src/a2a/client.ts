@@ -8,14 +8,21 @@ export interface A2aRequest {
   messages?: { role: string; content: string }[];
 }
 
-/** 요청 입력을 A2A 메시지 텍스트 한 덩어리로 만든다. */
+/**
+ * 요청 입력을 A2A 메시지 텍스트 한 덩어리로 만든다.
+ * 에이전트가 잘 응답하도록 **사용자 발화만 한 줄로 모아 작업 지시형**으로 만든다
+ * (봇 카드 텍스트·여러 줄 트랜스크립트는 일부 에이전트가 막힘 — 실측).
+ */
 function buildQueryText(input: A2aRequest | string): string {
   if (typeof input === "string") return input;
   if (input.messages?.length) {
-    const transcript = input.messages
-      .map((m) => `${m.role === "user" ? "사용자" : "도우미"}: ${m.content}`)
-      .join("\n");
-    return `${transcript}\n\n위 대화 맥락을 바탕으로 사용자의 마지막 질문에 답해줘.`;
+    const userTurns = input.messages
+      .filter((m) => m.role === "user")
+      .map((m) => m.content.replace(/\s+/g, " ").trim())
+      .filter(Boolean);
+    if (userTurns.length) {
+      return `사용자가 다음 순서로 문의했어: ${userTurns.join(", ")}. 이 대화 맥락을 종합해 안내해줘.`;
+    }
   }
   return input.question ?? "";
 }
@@ -149,9 +156,10 @@ export async function askA2a(
     await reader.cancel().catch(() => {});
 
     // 스트리밍된 artifact가 있으면 그것을, 없으면 최종 메시지(에러 사유 포함)를 답변으로.
+    // 임시 테스트 에이전트라 간헐적으로 빈 응답이 올 수 있어, 던지지 않고 안내 문구로 대체한다
+    // (카카오에는 항상 A2A 경로 결과가 표출되도록).
     const answer = (artifactText || finalMessageText).trim();
-    if (!answer) throw new Error("A2A 응답이 비어 있음");
-    return answer;
+    return answer || "(A2A 에이전트가 응답을 반환하지 않았어요. 잠시 후 다시 시도해 주세요.)";
   } finally {
     clearTimeout(timer);
   }

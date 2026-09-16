@@ -12,6 +12,9 @@ import { A2A_DURATION_MS, A2A_ENDPOINT } from "./config.js";
 
 interface A2aBody {
   id?: string | number;
+  /** rest 프로토콜: {message:"텍스트"} */
+  message?: string;
+  /** jsonrpc 프로토콜: {params:{message:{parts:[...]}}} */
   params?: { message?: { parts?: { kind?: string; text?: string }[] } };
 }
 
@@ -33,7 +36,8 @@ const handlers = [
   http.post(A2A_ENDPOINT, async ({ request }) => {
     const body = (await request.json().catch(() => ({}))) as A2aBody;
     const id = body.id ?? "1";
-    const userText = body.params?.message?.parts?.find((p) => p.kind === "text")?.text ?? "";
+    const userText =
+      body.message ?? body.params?.message?.parts?.find((p) => p.kind === "text")?.text ?? "";
     const taskId = "mock-task-1";
     const tokens = tokenize(mockAnswer(userText));
     const perToken = Math.max(1, Math.floor(A2A_DURATION_MS / (tokens.length + 2)));
