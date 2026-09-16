@@ -1,6 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import type { SkillCallbackAck, SkillResponse } from "@sprint-kakao/contract";
-import { parseSkillContext, recordTurn, selectBlock } from "../skill/index.js";
+import { applyModeEffect, parseSkillContext, recordTurn, selectBlock } from "../skill/index.js";
 import type { SkillBlock, SkillContext } from "../skill/index.js";
 import { skillPayloadSchema, skillResponseSchema } from "../schemas.js";
 
@@ -36,8 +36,11 @@ export async function skillRoutes(app: FastifyInstance): Promise<void> {
       const block = selectBlock(ctx);
       // 콜백 수신 여부를 명확히 로깅(콜백 미설정이면 5초 초과 처리는 폴백만 가능).
       console.log(
-        `[/skill] utterance="${ctx.utterance}" block=${block.name} callbackUrl=${ctx.callbackUrl ? "있음(콜백 활성)" : "없음(콜백 미설정→폴백)"}`,
+        `[/skill] utterance="${ctx.utterance}" mode=${ctx.mode ?? "menu"} block=${block.name} callbackUrl=${ctx.callbackUrl ? "있음(콜백 활성)" : "없음(콜백 미설정→폴백)"}`,
       );
+
+      // 블록이 선언한 세션 모드 전환(연결/해제)을 응답 생성 전에 반영한다.
+      await applyModeEffect(ctx, block);
 
       if (block.callback && (block.callback.when?.(ctx) ?? true)) {
         return handleCallbackBlock(app, block, ctx);

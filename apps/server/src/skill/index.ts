@@ -3,6 +3,7 @@ import type { SkillBlock, SkillContext } from "./types.js";
 import { blocks, fallback } from "./blocks/index.js";
 import { appendTurns, summarizeResponse } from "./history.js";
 import { loadHistory, saveHistory } from "./history-store.js";
+import { loadMode, saveMode } from "./session-store.js";
 
 export type { SkillContext, SkillBlock } from "./types.js";
 
@@ -23,13 +24,24 @@ export async function parseSkillContext(body: unknown): Promise<SkillContext> {
   const userId = extractUserId(body);
   // 콜백 활성화 시 실려오는 callbackUrl. 위치가 가설이라 userRequest 하위·최상위 모두 방어적으로 확인.
   const callbackUrl = b?.userRequest?.callbackUrl ?? (b?.callbackUrl as string | undefined);
+  const [history, mode] = await Promise.all([loadHistory(userId), loadMode(userId)]);
   return {
     utterance: (b?.userRequest?.utterance ?? "").trim(),
     userId,
-    history: await loadHistory(userId),
+    mode,
+    history,
     callbackUrl: typeof callbackUrl === "string" && callbackUrl ? callbackUrl : undefined,
     raw: body,
   };
+}
+
+/**
+ * 블록이 선언한 세션 모드 전환(setMode)을 저장소에 반영한다.
+ * setMode 미지정이면 아무 것도 하지 않는다. (디스패처가 블록 처리 후 호출.)
+ */
+export async function applyModeEffect(ctx: SkillContext, block: SkillBlock): Promise<void> {
+  if (block.setMode === undefined) return;
+  await saveMode(ctx.userId, block.setMode);
 }
 
 /** 발화에 매칭되는 블록을 고른다. 아무 것도 안 맞으면 폴백. */
@@ -65,6 +77,7 @@ export async function handleSkill(ctx: SkillContext): Promise<{
 }> {
   const block = selectBlock(ctx);
   const response = block.respond(ctx);
+  await applyModeEffect(ctx, block);
   await recordTurn(ctx, block, response);
   return { block: block.name, response };
 }

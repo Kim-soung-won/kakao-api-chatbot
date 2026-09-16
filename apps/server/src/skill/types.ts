@@ -1,5 +1,8 @@
 import type { SkillResponse } from "@sprint-kakao/contract";
 import type { HistoryTurn } from "./history.js";
+import type { SessionMode } from "./session-store.js";
+
+export type { SessionMode } from "./session-store.js";
 
 /** 한 번의 스킬 호출 컨텍스트(요청에서 추출한 값). */
 export interface SkillContext {
@@ -7,6 +10,11 @@ export interface SkillContext {
   utterance: string;
   /** 발화자 식별키(botUserKey = userRequest.user.id). 이력 파일 저장소의 키. 없으면 "anonymous". */
   userId: string;
+  /**
+   * 이 사용자의 현재 대화 모드(session-store.ts에서 이번 요청 시점에 로드).
+   * undefined=일반 메뉴 모드, "agent"=AI 안내서비스 연결(발화가 A2A 에이전트로 흐름).
+   */
+  mode?: SessionMode;
   /**
    * 이 사용자의 이전 대화 이력. 파일 저장소(history-store.ts)에서 이번 요청 시점에 로드한 값.
    * (파일 없음/깨짐이면 빈 배열.)
@@ -34,6 +42,12 @@ export interface SkillBlock {
    * (예: "RAG 검색" 같은 메타/디버그 명령은 이력에 남기지 않아야 이력이 오염되지 않음)
    */
   transient?: boolean;
+  /**
+   * 선택: 이 블록으로 처리한 뒤 사용자 세션 모드를 전환한다.
+   * "agent"=에이전트 대화 모드 진입, null=해제(메뉴 복귀), undefined(미지정)=변경 없음.
+   * (예: connect는 "agent", exit은 null. 디스패처가 respond/run 후 저장한다.)
+   */
+  setMode?: SessionMode | null;
   match(ctx: SkillContext): boolean;
   /** 동기 응답(5초 이내). 콜백 블록에서는 A2A 미가용 시의 폴백으로도 쓰인다. */
   respond(ctx: SkillContext): SkillResponse;
