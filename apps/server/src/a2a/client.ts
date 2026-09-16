@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { A2A_ENDPOINT, A2A_TIMEOUT_MS } from "./config.js";
+import { A2A_AUTH, A2A_ENDPOINT, A2A_PROTOCOL, A2A_TIMEOUT_MS } from "./config.js";
 
 /** A2A/RAG 요청 페이로드 — 단발 질문 또는 대화 이력(RAG 검색). */
 export interface A2aRequest {
@@ -45,27 +45,37 @@ export async function askA2a(
   onDelta?: (delta: string) => void,
 ): Promise<string> {
   const text = buildQueryText(input);
-  const rpc = {
-    jsonrpc: "2.0",
-    id: randomUUID(),
-    method: "message/stream",
-    params: {
-      message: {
-        role: "user",
-        parts: [{ kind: "text", text }],
-        messageId: randomUUID(),
-        kind: "message",
-      },
-    },
+  // 프로토콜별 요청 바디. jsonrpc=Google ADK message/stream, rest={message} (예: llamon).
+  const body =
+    A2A_PROTOCOL === "rest"
+      ? { message: text }
+      : {
+          jsonrpc: "2.0",
+          id: randomUUID(),
+          method: "message/stream",
+          params: {
+            message: {
+              role: "user",
+              parts: [{ kind: "text", text }],
+              messageId: randomUUID(),
+              kind: "message",
+            },
+          },
+        };
+
+  const headers: Record<string, string> = {
+    "content-type": "application/json",
+    accept: "text/event-stream",
   };
+  if (A2A_AUTH) headers["authorization"] = A2A_AUTH;
 
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), A2A_TIMEOUT_MS);
   try {
     const res = await fetch(A2A_ENDPOINT, {
       method: "POST",
-      headers: { "content-type": "application/json", accept: "text/event-stream" },
-      body: JSON.stringify(rpc),
+      headers,
+      body: JSON.stringify(body),
       signal: ctrl.signal,
     });
     if (!res.ok || !res.body) throw new Error(`A2A 요청 실패: ${res.status}`);
@@ -76,8 +86,12 @@ export async function askA2a(
     let artifactText = "";
     let finalMessageText = "";
 
-    const handle = (evt: Record<string, unknown> | undefined): void => {
-      if (!evt) return;
+    const TERMINAL = new Set(["completed", "failed", "canceled", "rejected"]);
+    let finished = false;
+
+    /** 이벤트 처리 + 종료 여부 반환(최종 상태이면 true). */
+    const handle = (evt: Record<string, unknown> | undefined): boolean => {
+      if (!evt) return false;
       const kind = evt["kind"];
       if (kind === "artifact-update") {
         const t = partsText((evt["artifact"] as { parts?: unknown } | undefined)?.parts);
@@ -86,13 +100,17 @@ export async function askA2a(
           onDelta?.(t);
         }
       } else if (kind === "status-update" || kind === "task") {
-        const status = evt["status"] as { message?: { parts?: unknown } } | undefined;
+        const status = evt["status"] as
+          | { state?: string; message?: { parts?: unknown } }
+          | undefined;
         const t = partsText(status?.message?.parts);
         if (t) finalMessageText = t;
+        if (evt["final"] === true || (status?.state && TERMINAL.has(status.state))) return true;
       } else if (kind === "message") {
         const t = partsText(evt["parts"]);
         if (t) finalMessageText = t;
       }
+      return false;
     };
 
     for (;;) {
@@ -105,21 +123,30 @@ export async function askA2a(
         buffer = buffer.slice(sep + 2);
         const dataLine = rawEvent.split("\n").find((l) => l.startsWith("data:"));
         if (!dataLine) continue;
+        const payload = dataLine.slice(5).trim();
+        if (payload === "[DONE]") {
+          finished = true;
+          break;
+        }
         try {
-          const msg = JSON.parse(dataLine.slice(5).trim()) as {
+          const msg = JSON.parse(payload) as {
             result?: Record<string, unknown>;
             error?: { message?: string };
-          };
+          } & Record<string, unknown>;
           if (msg.error) {
             finalMessageText = `A2A 오류: ${msg.error.message ?? "unknown"}`;
             continue;
           }
-          handle(msg.result);
+          // JSON-RPC는 result에, REST(llamon)는 최상위에 이벤트가 온다.
+          if (handle(msg.result ?? msg)) finished = true;
         } catch {
           // 파싱 불가한 이벤트(하트비트 등)는 무시.
         }
       }
+      if (finished) break;
     }
+    // 스트림이 종료 신호 후에도 열려 있을 수 있으므로 reader를 명시적으로 닫는다.
+    await reader.cancel().catch(() => {});
 
     // 스트리밍된 artifact가 있으면 그것을, 없으면 최종 메시지(에러 사유 포함)를 답변으로.
     const answer = (artifactText || finalMessageText).trim();

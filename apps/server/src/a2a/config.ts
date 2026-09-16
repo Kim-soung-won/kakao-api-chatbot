@@ -6,10 +6,23 @@
  * MSW 목업(mock.ts)을 켠다(같은 엔드포인트 URL을 가로챈다).
  */
 
-/** A2A RPC 엔드포인트(JSON-RPC). 기본: 실제 서버의 RAG(google-adk) 에이전트. */
+/** A2A 엔드포인트. 기본: 실제 서버의 RAG(google-adk) 에이전트. */
 export const A2A_ENDPOINT =
   process.env["A2A_ENDPOINT"] ??
   "http://16.16.208.36:8000/a2a/google-adk-agent/jsonrpc";
+
+/**
+ * 요청 프로토콜.
+ *  - "jsonrpc": Google ADK toA2a — body는 JSON-RPC message/stream, 이벤트는 {result:{kind}}.
+ *  - "rest":    REST 스타일(예: llamon) — body는 {message:"텍스트"}, 이벤트는 {kind} 최상위.
+ * SSE 파싱은 두 형식을 모두 처리한다(client.ts에서 result 언랩).
+ */
+export const A2A_PROTOCOL = (process.env["A2A_PROTOCOL"] === "rest" ? "rest" : "jsonrpc") as
+  | "jsonrpc"
+  | "rest";
+
+/** Authorization 헤더 값(예: "Bearer eyJ…"). 비밀이므로 .env로만 주입, 커밋 금지. */
+export const A2A_AUTH = process.env["A2A_AUTH"];
 
 /** A2A 스트림 대기 상한(ms). 콜백 유효(1분)보다 짧게. */
 export const A2A_TIMEOUT_MS = Number(process.env["A2A_TIMEOUT_MS"] ?? 55_000);
