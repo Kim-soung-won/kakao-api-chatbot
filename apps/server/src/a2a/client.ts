@@ -21,7 +21,9 @@ function buildQueryText(input: A2aRequest | string): string {
       .map((m) => m.content.replace(/\s+/g, " ").trim())
       .filter(Boolean);
     if (userTurns.length) {
-      return `사용자가 다음 순서로 문의했어: ${userTurns.join(", ")}. 이 대화 맥락을 종합해 안내해줘.`;
+      // ⚠️ 현재 연결된 에이전트(llamon)가 '창작/작성' 태스크에 안정적으로 응답해, 그에 맞춰 생성형으로
+      //    프레이밍한다. 실제 복지 RAG로 교체 시엔 사실 질의형으로 바꾸는 게 낫다.
+      return `복지 상담 챗봇으로서, 사용자가 문의한 다음 항목들을 소개하는 친절한 안내 글을 한 단락으로 작성해줘: ${userTurns.join(", ")}.`;
     }
   }
   return input.question ?? "";
