@@ -87,6 +87,11 @@ export async function askA2a(
       body: JSON.stringify(body),
       signal: ctrl.signal,
     });
+    if (res.status === 401 || res.status === 403) {
+      throw new Error(
+        `A2A 인증 실패(${res.status}) — A2A_AUTH(Bearer 토큰)가 컨테이너에 주입됐는지 확인(.env/env_file).`,
+      );
+    }
     if (!res.ok || !res.body) throw new Error(`A2A 요청 실패: ${res.status}`);
 
     const reader = res.body.getReader();
