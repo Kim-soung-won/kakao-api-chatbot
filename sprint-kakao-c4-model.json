@@ -92,10 +92,10 @@
     },
     {
       "id": "sys-rag",
-      "name": "RAG 백엔드 (다음 단계)",
+      "name": "RAG 백엔드 (A2A 서버)",
       "type": "system",
       "technology": "python",
-      "description": "외부/예정. 검색 기반 답변을 생성해 스킬 서버에 제공할 백엔드. Python 계열(FastAPI/LangChain 등) 예정, 아직 미연동.",
+      "description": "Google ADK toA2a 기반 A2A 서버(16.16.208.36:8000). JSON-RPC message/stream + SSE. RAG 에이전트(google-adk-agent)가 문서 검색 기반으로 답한다. 백엔드는 vLLM.",
       "position": {
         "x": 1200,
         "y": 0
@@ -382,7 +382,7 @@
       "systemId": "sys-kakao-skill",
       "containerId": "cont-server",
       "technology": "typescript",
-      "description": "외부 RAG/A2A 에이전트를 SSE로 호출해 최종 답변을 수신(client.ts). 실제 백엔드 전까지 MSW 목업(mock.ts, 30초 SSE). \"RAG 검색\" 발화가 이 경로를 사용 — 지금까지의 대화 이력 전체를 RAG로 전송해 답변을 받는다. 5초 초과라 카카오 콜백(useCallback)으로 최종 응답을 callbackUrl에 POST.",
+      "description": "실제 A2A 서버(Google ADK, JSON-RPC message/stream + SSE)에 질의하고 스트림을 소비해 최종 답변을 받는다(client.ts). \"RAG 검색\"이 대화 이력을 텍스트로 합쳐 전송. 오프라인은 MSW 목업(mock.ts, 같은 A2A 프레이밍). 5초 초과라 카카오 콜백(useCallback)으로 최종 응답을 callbackUrl에 POST.",
       "position": {
         "x": 700,
         "y": 150
@@ -390,8 +390,8 @@
       "connections": [
         {
           "targetId": "sys-rag",
-          "label": "대화 이력(messages) POST → SSE 스트림 수신",
-          "technology": "http/sse"
+          "label": "JSON-RPC message/stream → SSE 수신",
+          "technology": "http/json-rpc/sse"
         }
       ]
     }
@@ -612,7 +612,7 @@
       {
         "id": "d11",
         "topic": "RAG 검색을 A2A/RAG 콜백에 연결",
-        "choice": "A2A/콜백 연동은 특정 welfare 키워드가 아니라 \"RAG 검색\" 발화에 연결한다. RAG 검색 시 누적 대화 이력 전체를 RAG(A2A)로 전송, 5초 초과라 useCallback으로 즉시 대기응답 후 callbackUrl로 최종 POST. SSE는 서버가 끝까지 소비해 완성 텍스트 1회 전송. 실제 백엔드 전까지 MSW 30초 SSE 목업.",
+        "choice": "A2A/콜백은 \"RAG 검색\" 발화에 연결. RAG 검색 시 누적 대화 이력을 실제 A2A 서버(Google ADK, JSON-RPC message/stream+SSE)로 전송, 5초 초과라 useCallback으로 대기응답 후 callbackUrl로 최종 POST. SSE는 서버가 끝까지 소비해 완성 텍스트 1회 전송. 오프라인은 MSW 목업(동일 프레이밍).",
         "why": "RAG 검색의 본래 의도가 \"지금까지 대화를 RAG 서버로 보내 답변받기\"이므로 그 트리거에 직접 연결하는 것이 자연스럽다. 카카오 5초 제한 때문에 콜백이 유일한 우회로(유효 1분·1회). 콜백 미설정 시 SYNC_BUDGET_MS(3.5s) 내 동기 시도 후 폴백해 1001 타임아웃을 피한다.",
         "rejected": [
           "특정 welfare 키워드(의료 등)에 매핑",

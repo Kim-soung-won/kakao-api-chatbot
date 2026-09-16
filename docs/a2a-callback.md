@@ -47,9 +47,9 @@ A2A는 SSE로 토큰을 흘리지만, **카카오 챗봇 말풍선은 토큰 실
 
 | 파일 | 역할 |
 | --- | --- |
-| `a2a/config.ts` | 엔드포인트(`A2A_ENDPOINT`)·목업 시간(`A2A_DURATION_MS`, 기본 30s)·`A2A_MOCK` 토글 |
-| `a2a/mock.ts` | **MSW** 목업 — `A2A_ENDPOINT` POST를 가로채 SSE로 토큰을 흘리다 30초에 완료 |
-| `a2a/client.ts` | `askA2a()` — A2A/RAG에 요청 POST(대화 이력 messages 포함), **SSE 스트림 소비**해 최종 답변 반환 |
+| `a2a/config.ts` | `A2A_ENDPOINT`(기본: 실제 google-adk RAG 에이전트)·`A2A_TIMEOUT_MS`·`A2A_MOCK`(기본 off)·`A2A_DURATION_MS`(목업 전용) |
+| `a2a/mock.ts` | **MSW** 목업(A2A_MOCK=1) — 실서버와 **같은 A2A 프레이밍**(task→working→artifact×N→completed)으로 SSE 응답 |
+| `a2a/client.ts` | `askA2a()` — 실제 A2A 서버에 **JSON-RPC `message/stream`** POST(대화 이력을 텍스트로), **SSE 소비**해 artifact/최종 message 텍스트 반환 |
 | `skill/blocks/rag-search.ts` | `RAG 검색` 블록. `callback.run`이 대화 이력을 `askA2a`로 전송, `respond`는 이력없음/폴백 |
 | `routes/skill.ts` | 콜백 블록 감지(`callback.when`) → useCallback ack + 백그라운드 run → `callbackUrl` POST. 콜백 없으면 `SYNC_BUDGET_MS`(3.5s) 내 동기 시도 후 폴백 |
 | `routes/callback-sink.ts` | **디버그** 로컬 콜백 수신함(실카카오 없이 콜백 테스트용) |
@@ -75,9 +75,15 @@ sleep 2
 curl -s 'localhost:3000/callback-sink?id=t1'   # payload에 최종 RAG 답변(대화 N턴 참고)
 ```
 
-## 실연동으로 넘어갈 때
+## 실제 A2A 서버 (연결됨)
 
-- `A2A_MOCK=0` + `A2A_ENDPOINT=<실제 RAG/A2A URL>` 로 목업을 끄고 실제 서버에 붙인다. `client.ts`가
-  대화 이력(messages)을 POST하고 SSE를 소비 — 프레이밍이 다르면 파서만 조정.
-- 실서비스는 카카오 콜백 활성화가 필수(그래야 `callbackUrl` 수신). 콜백 없으면 30초는 5초 제한에
-  걸리므로 폴백만 뜬다(`A2A_DURATION_MS`를 낮추면 콜백 없이도 동기로 받을 수 있음). `callback-sink`는 디버그 전용.
+- **엔드포인트**: `http://16.16.208.36:8000/a2a/google-adk-agent/jsonrpc` (Google ADK `toA2a`, RAG 에이전트).
+  AgentCard: `…/a2a/google-adk-agent/.well-known/agent-card.json`. `A2A_ENDPOINT` env로 교체 가능.
+  ⚠️ 카드의 `url`은 `localhost`로 찍혀 있으니 무시하고 공개 IP로 접근한다.
+- **프로토콜**: JSON-RPC `message/stream` → SSE. 이벤트 `kind`: `task`→`status-update`(working)→
+  `artifact-update`(토큰)→`status-update`(final). 답변은 artifact 또는 최종 status.message의 text 파트.
+- `A2A_MOCK=0`(기본)이면 실서버, `A2A_MOCK=1`이면 MSW 목업(같은 URL 가로챔).
+- 실서비스는 카카오 콜백 활성화가 필수(그래야 `callbackUrl` 수신). 콜백 없으면 5초 초과 시 폴백만 뜬다.
+
+> 현재 백엔드 vLLM이 `Forbidden`을 반환하면 답변 자리에 `VllmLlm request failed: Forbidden`이 그대로
+> 온다(우리 배선은 정상, A2A 서버 쪽 모델 권한 이슈). 모델 인증이 풀리면 실제 RAG 답변이 온다.
