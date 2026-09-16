@@ -19,9 +19,10 @@ function extractUserId(body: unknown): string {
  * 대화 이력은 botUserKey별 파일 저장소(captured-requests/history/)에서 로드한다.
  */
 export async function parseSkillContext(body: unknown): Promise<SkillContext> {
-  const b = body as Partial<SkillPayload> | undefined;
+  const b = body as (Partial<SkillPayload> & { callbackUrl?: unknown }) | undefined;
   const userId = extractUserId(body);
-  const callbackUrl = b?.userRequest?.callbackUrl;
+  // 콜백 활성화 시 실려오는 callbackUrl. 위치가 가설이라 userRequest 하위·최상위 모두 방어적으로 확인.
+  const callbackUrl = b?.userRequest?.callbackUrl ?? (b?.callbackUrl as string | undefined);
   return {
     utterance: (b?.userRequest?.utterance ?? "").trim(),
     userId,

@@ -34,6 +34,10 @@ export async function skillRoutes(app: FastifyInstance): Promise<void> {
 
       const ctx = await parseSkillContext(request.body);
       const block = selectBlock(ctx);
+      // 콜백 수신 여부를 명확히 로깅(콜백 미설정이면 5초 초과 처리는 폴백만 가능).
+      console.log(
+        `[/skill] utterance="${ctx.utterance}" block=${block.name} callbackUrl=${ctx.callbackUrl ? "있음(콜백 활성)" : "없음(콜백 미설정→폴백)"}`,
+      );
 
       if (block.callback && (block.callback.when?.(ctx) ?? true)) {
         return handleCallbackBlock(app, block, ctx);
