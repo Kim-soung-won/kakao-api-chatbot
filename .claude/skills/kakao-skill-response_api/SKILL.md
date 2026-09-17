@@ -46,6 +46,40 @@ metadata:
 
 ---
 
+## 전송·노출 요건 (스킬 서버 URL)
+
+카카오 챗봇은 **인바운드 웹훅** 구조다 — 사용자가 채널에서 발화하면 오픈빌더가
+매칭된 블록의 **스킬 URL로 HTTP POST**를 보내고(요청·응답 모두 JSON body), 우리 서버는
+그 요청에 대한 HTTP 응답으로 `SkillResponse`를 돌려준다. 즉 우리 서버는 **카카오가
+공개 인터넷에서 도달할 수 있는 주소**여야 한다.
+
+**카카오 공식 제약 (오픈빌더 스킬 가이드):**
+
+- **"스킬은 공인IP 또는 공중망 도메인만 사용 가능합니다."** → `localhost`·사설망은 등록 불가.
+- **"각각의 요청은 HTTP POST를 통해서 전달되고, 요청과 응답 모두 JSON으로 구성된 body를 이용합니다."**
+- 스킬 타임아웃은 **고정 5초**. 초과 예상 시(예: RAG·A2A) **콜백(useCallback) 비동기 패턴**으로
+  대기응답 후 `callbackUrl`로 최종 응답을 POST한다. (콜백 URL 역시 공개 HTTPS 경로여야 함.)
+
+> **HTTPS 강제 — 실측 확정(2026-09-17).** 카카오 문서 본문은 프로토콜을 "공중망 도메인"으로만
+> 표현하지만, 스킬 URL을 `http://`로 등록해도 **카카오가 접속을 TLS로 강제**한다. 평문 http
+> 엔드포인트로 실측했더니 오픈빌더가 `not an SSL/TLS record`(카카오가 보낸 TLS ClientHello에
+> 우리 서버가 평문 `HTTP/1.1 400`으로 응답 → TLS 클라이언트가 끊음)로 실패했다. 즉 스킬/콜백
+> URL은 **유효 SSL 인증서를 갖춘 HTTPS 필수**. 상세: `docs/https-requirement-test.md`.
+> 노출 수단도 **https를 종단하는 터널**(cloudflared quick tunnel·localhost.run)만 유효하고,
+> `bore` 같은 평문 http 릴레이는 카카오 연동에 못 쓴다(디버깅 전용).
+
+**이 프로젝트의 노출 결정 (C4 모델 `d4` = 근거 출처):**
+
+- 실측 단계에서는 로컬 `:3000`을 **cloudflared** 또는 **ssh(localhost.run)** 터널로
+  **공개 HTTPS**에 노출해 스킬 URL로 등록하고, 향후 공개 호스트 배포(EC2 + cloudflared)로 대체한다.
+- ✗ 즉시 클라우드 배포 / ✗ ngrok(계정·authtoken 필요) — 설치·계정 부담 때문에 기각.
+- **터널이 필요한 경로는 이 인바운드 웹훅 엣지가 유일**하다. 반대로 우리가 카카오 공개 API로
+  나가는 **아웃바운드**(비즈메시지, A2A/RAG 호출)는 `localhost`에서도 동작 → 터널 불필요.
+- 출처: `sprint-kakao-c4-model.json` → `designIntent.decisions[d4]` + `sys-kakao-platform`↔`sys-kakao-skill`
+  엣지 설명 + deployment `ec2` 노드. (엣지 방향 ⬅️ 인바운드 = connection reversed.)
+
+---
+
 ## HTTP 엔드포인트 (apps/server)
 
 ### `GET /health`

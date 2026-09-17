@@ -711,10 +711,11 @@
         "id": "d4",
         "topic": "로컬 공개 노출",
         "choice": "cloudflared 또는 ssh(localhost.run) 터널로 로컬 서버를 공개 HTTPS로 노출",
-        "why": "실측 단계라 클라우드 배포 전에 설치·계정 부담 없이 카카오가 접근할 HTTPS URL이 필요.",
+        "why": "실측 단계라 클라우드 배포 전에 설치·계정 부담 없이 카카오가 접근할 HTTPS URL이 필요. HTTPS 강제는 실측 확정(2026-09-17): 평문 http URL(bore 터널)로 스킬서버 전송 시 카카오가 TLS로 접속을 강제해 'not an SSL/TLS record'로 실패 → https 종단 터널만 유효, bore 등 평문 http 릴레이는 연동 불가(디버깅 전용). 상세 docs/https-requirement-test.md.",
         "rejected": [
           "즉시 클라우드 배포",
-          "ngrok(계정·authtoken 필요)"
+          "ngrok(계정·authtoken 필요)",
+          "bore 등 평문 http 릴레이(실측상 카카오 TLS 강제로 연동 불가)"
         ],
         "relatedIds": [
           "sys-kakao-platform",
