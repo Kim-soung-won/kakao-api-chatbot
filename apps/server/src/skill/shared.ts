@@ -1,17 +1,17 @@
 import type { Output, SkillResponse } from "@sprint-kakao/contract";
 import { messageQuickReply } from "../builders/outputs.js";
 
-/** 복지 안내 공통 바로가기(폴백 등에서 노출). */
+/**
+ * 공통 바로가기(에이전트 답변·폴백에서 노출).
+ * 온보딩 시작("맞춤복지") 외의 항목은 그대로 발화로 되쏘아져 에이전트가 처리한다.
+ */
 export const NAV_QUICK_REPLIES = [
-  messageQuickReply("이용안내", "이용안내"),
   messageQuickReply("맞춤복지", "맞춤복지"),
-  messageQuickReply("복지 안내", "복지"),
   messageQuickReply("보육료", "보육료"),
   messageQuickReply("교육활동비", "교육활동비"),
   messageQuickReply("한국어교육", "한국어교육"),
-  messageQuickReply("취업지원", "취업"),
+  messageQuickReply("취업지원", "취업지원"),
   messageQuickReply("신청 절차", "신청 절차"),
-  messageQuickReply("AI 안내서비스 연결", "AI 안내서비스 연결"),
 ];
 
 /** outputs를 복지 네비 바로가기와 함께 SkillResponse로 감싼다. */

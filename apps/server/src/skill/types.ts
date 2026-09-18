@@ -1,25 +1,14 @@
 import type { SkillResponse } from "@sprint-kakao/contract";
-import type { HistoryTurn } from "./history.js";
-import type { SessionMode } from "./session-store.js";
-
-export type { SessionMode } from "./session-store.js";
 
 /** 한 번의 스킬 호출 컨텍스트(요청에서 추출한 값). */
 export interface SkillContext {
   /** 정규화된 사용자 발화. */
   utterance: string;
-  /** 발화자 식별키(botUserKey = userRequest.user.id). 이력 파일 저장소의 키. 없으면 "anonymous". */
+  /**
+   * 발화자 식별키(botUserKey = userRequest.user.id). 없으면 "anonymous".
+   * 대화 이력은 서버가 저장하지 않는다(에이전트가 관리) — userId는 로깅·전달용 식별자로만 쓴다.
+   */
   userId: string;
-  /**
-   * 이 사용자의 현재 대화 모드(session-store.ts에서 이번 요청 시점에 로드).
-   * undefined=일반 메뉴 모드, "agent"=AI 안내서비스 연결(발화가 A2A 에이전트로 흐름).
-   */
-  mode?: SessionMode;
-  /**
-   * 이 사용자의 이전 대화 이력. 파일 저장소(history-store.ts)에서 이번 요청 시점에 로드한 값.
-   * (파일 없음/깨짐이면 빈 배열.)
-   */
-  history: HistoryTurn[];
   /**
    * 콜백 URL(카카오 useCallback 스킬에서 실려옴). 있으면 5초 초과 처리를 콜백으로 보낼 수 있다.
    * 없으면(로컬/콜백 미설정) 동기 경로로 폴백. → blocks의 `callback` 참고.
@@ -32,22 +21,15 @@ export interface SkillContext {
 /**
  * 스킬 블록 — 오픈빌더의 "블록" 개념을 앱 레벨로 옮긴 처리 단위.
  * match로 이 발화를 처리할지 판단하고, respond로 SkillResponse를 만든다.
- * (웰컴·폴백·탈출·시나리오 블록이 각각 이 계약을 구현.)
+ *
+ * 현재 블록은 둘뿐이다:
+ *   - onboarding : 지역→가구→관심 카드 흐름(로컬). 완료 시 프로필을 에이전트로 전달(callback).
+ *   - agent      : 그 외 모든 발화의 캐치올. 발화를 A2A 에이전트로 전달(callback).
+ * (에이전트 대화 "모드" 진입/종료 개념은 제거됨 — 온보딩 외 모든 질의가 에이전트로 간다.)
  */
 export interface SkillBlock {
   /** 블록 이름(로깅·문서용). */
   name: string;
-  /**
-   * 참이면 이 블록으로 처리된 턴은 대화 이력에 기록하지 않는다.
-   * (예: "RAG 검색" 같은 메타/디버그 명령은 이력에 남기지 않아야 이력이 오염되지 않음)
-   */
-  transient?: boolean;
-  /**
-   * 선택: 이 블록으로 처리한 뒤 사용자 세션 모드를 전환한다.
-   * "agent"=에이전트 대화 모드 진입, null=해제(메뉴 복귀), undefined(미지정)=변경 없음.
-   * (예: connect는 "agent", exit은 null. 디스패처가 respond/run 후 저장한다.)
-   */
-  setMode?: SessionMode | null;
   match(ctx: SkillContext): boolean;
   /** 동기 응답(5초 이내). 콜백 블록에서는 A2A 미가용 시의 폴백으로도 쓰인다. */
   respond(ctx: SkillContext): SkillResponse;
@@ -59,7 +41,7 @@ export interface SkillBlock {
   callback?: {
     /**
      * 선택: 이 요청을 콜백으로 처리할지 결정. 없거나 true면 콜백, false면 동기 respond로.
-     * (예: RAG 검색은 이력이 있을 때만 RAG 호출, 없으면 즉시 안내를 respond로 낸다.)
+     * (예: onboarding은 완료 단계에서만 에이전트를 콜백 호출한다.)
      */
     when?(ctx: SkillContext): boolean;
     /** 대기 응답에 노출할 문구. */

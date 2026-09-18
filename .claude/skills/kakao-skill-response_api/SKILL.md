@@ -19,13 +19,13 @@ metadata:
         note: >-
           봇 스코프에서 사용자 식별/데이터 키로 쓸 수 있는지 여부. /echo 캡처로 확정.
           저장소(무DB vs KV) 결정을 좌우한다.
-      - topic: "context.params 요청↔응답 왕복 여부 (검증 대상 2)"
+      - topic: "context.params 요청↔응답 왕복 여부 (실측: 미왕복)"
         note: >-
-          응답에서 세팅한 context.values[].params가 다음 요청 userRequest.contexts[].params로
-          되돌아오는지. [[kakao-skill-response_domain]]의 응답 측 context와 짝을 이룬다. /echo로 확정.
-      - topic: "contexts params 수명(lifeSpan 턴 수 / ttl 초) 만료 동작 (검증 대상 3)"
+          응답에서 세팅한 context.values[].params가 다음 요청으로 되돌아오지 않음(요청 최상위
+          contexts가 매번 빈 배열). → 서버 상태 저장을 포기하고 대화 이력은 에이전트가 관리한다.
+      - topic: "contexts params 수명(lifeSpan/ttl) 만료 동작"
         note: >-
-          실제 만료 규칙 미확정. context를 채팅방 세션 저장소로 쓸 수 있는지 판단 근거. /echo로 확정.
+          (2)가 미왕복이라 실사용 의미는 작음. 에이전트가 이력을 관리하므로 서버 세션 수명 설계와 무관.
       - topic: "action.clientExtra 로 버튼 block action의 extra 전달 여부"
         note: >-
           응답의 block action extra가 다음 요청 action.clientExtra로 오는지 미확인. /echo로 확정.
@@ -60,13 +60,17 @@ metadata:
 - 스킬 타임아웃은 **고정 5초**. 초과 예상 시(예: RAG·A2A) **콜백(useCallback) 비동기 패턴**으로
   대기응답 후 `callbackUrl`로 최종 응답을 POST한다. (콜백 URL 역시 공개 HTTPS 경로여야 함.)
 
-> **HTTPS 강제 — 실측 확정(2026-09-17).** 카카오 문서 본문은 프로토콜을 "공중망 도메인"으로만
-> 표현하지만, 스킬 URL을 `http://`로 등록해도 **카카오가 접속을 TLS로 강제**한다. 평문 http
-> 엔드포인트로 실측했더니 오픈빌더가 `not an SSL/TLS record`(카카오가 보낸 TLS ClientHello에
-> 우리 서버가 평문 `HTTP/1.1 400`으로 응답 → TLS 클라이언트가 끊음)로 실패했다. 즉 스킬/콜백
-> URL은 **유효 SSL 인증서를 갖춘 HTTPS 필수**. 상세: `docs/https-requirement-test.md`.
-> 노출 수단도 **https를 종단하는 터널**(cloudflared quick tunnel·localhost.run)만 유효하고,
-> `bore` 같은 평문 http 릴레이는 카카오 연동에 못 쓴다(디버깅 전용).
+> **HTTPS 강제 + 공인 CA 필요 — 실측 확정(2026-09-17).** 카카오 문서 본문은 프로토콜을
+> "공중망 도메인"으로만 표현하지만, 실측 결과:
+> - **①평문 http 불가** — 스킬 URL을 `http://`로 등록해도 카카오가 접속을 TLS로 강제한다.
+>   오픈빌더가 `not an SSL/TLS record`(카카오 TLS ClientHello에 우리 서버가 평문 `HTTP/1.1 400`
+>   응답 → TLS 클라이언트가 끊음)로 실패.
+> - **②self-signed(사설 CA) HTTPS도 불가** — nginx로 mkcert 인증서를 종단하고 raw TCP 터널로
+>   노출해도 카카오가 거부. 즉 **공인 CA(공개 신뢰 체인) + 대상 호스트명 일치** 인증서가 필요.
+>
+> 결론: 스킬/콜백 URL은 **공인 CA 인증서를 갖춘 HTTPS 필수**. 상세: `docs/https-requirement-test.md`.
+> 노출 수단도 **공인 인증서로 https를 종단하는 터널**(cloudflared quick tunnel·localhost.run)만
+> 유효하고, `bore` 평문 http·self-signed HTTPS는 카카오 연동에 못 쓴다(둘 다 디버깅 전용).
 
 **이 프로젝트의 노출 결정 (C4 모델 `d4` = 근거 출처):**
 
@@ -98,11 +102,16 @@ metadata:
 카카오 스킬 본 엔드포인트.
 
 - **Request Body**: `SkillPayload` (아래 "요청 계약" 참조). ⚠️ unconfirmed — 가설.
-- **동작**: `userRequest.utterance`(사용자 발화 원문)를 읽어 `SkillResponse`를 반환한다.
-  현재는 **mock 데모 빌더**가 응답을 생성한다(추후 RAG 변환 흐름으로 교체 예정).
-  요청 타입이 가설이므로 **옵셔널 체이닝으로 방어적 파싱**한다.
-- **Response**: `SkillResponse` → **계약은 [[kakao-skill-response_domain]] 참고**
-  (이 스킬에서 응답 구조를 재정의하지 않는다).
+- **동작**: `userRequest.utterance`(사용자 발화)를 읽어 블록으로 디스패치한다 —
+  **onboarding**(지역→가구→관심 카드 흐름, 로컬) 또는 **agent**(그 외 모든 발화를 A2A 에이전트로
+  전달). 온보딩 완료 시 수집 프로필을 에이전트로 넘긴다. 5초 초과(에이전트) 처리는 콜백 플로우로
+  반환한다. 요청 타입이 가설이므로 **옵셔널 체이닝으로 방어적 파싱**한다.
+  - **서버는 대화 이력·세션 모드를 저장하지 않는다** — 멀티턴 맥락은 에이전트가 관리한다.
+    온보딩 진행 상태만 quickReply `messageText`에 누적해 나른다. (배경: [[kakao-skill-response_domain]]의
+    응답 측 `context`가 요청으로 왕복되지 않음 — 실측.)
+- **Response**: `SkillResponse`(또는 콜백 시 `useCallback` ack) → **계약은 [[kakao-skill-response_domain]] 참고**
+  (이 스킬에서 응답 구조를 재정의하지 않는다). 에이전트 답변은 임시로 `render-agent`가 SkillResponse로
+  변환하며, 에이전트의 정식 SkillResponse 형식은 추후 확정 예정.
 
 ### `POST /echo`
 
@@ -173,16 +182,18 @@ interface SkillAction {
 
 ---
 
-## 검증 대상 3가지 (저장소 설계의 근거) — /echo 캡처로 확정
+## 검증 대상 (/echo 캡처)
+
+> ⚠️ 저장소 설계 근거로서의 의미는 **해소됨**: 서버는 이제 상태를 저장하지 않고 대화 이력은
+> 에이전트가 관리한다(아래 "핵심 의사 결정"). 아래는 요청 계약 확정을 위해 여전히 실측할 항목.
 
 1. **`userRequest.user.id`(botUserKey)가 세션 간 고정인가?**
-   고정이면 사용자 식별/데이터 키로 사용 가능. 저장소 키 설계의 전제.
-2. **응답에서 세팅한 `context.values[].params`가 다음 요청의
-   `userRequest.contexts[].params`로 왕복되는가?**
-   왕복되면 카카오 context를 상태 채널로 사용 가능.
-   ([[kakao-skill-response_domain]]의 응답 측 `context`와 짝.)
-3. **`contexts` params의 수명(`lifeSpan` 턴 수 / `ttl` 초)이 실제로 어떻게 만료되는가?**
-   만료 규칙이 무DB 세션 저장의 한계를 규정한다.
+   에이전트로 넘길 사용자 식별자·로깅 키의 안정성 확인용(더는 서버 저장소 키가 아님).
+2. **응답 `context.values[].params`가 다음 요청 `contexts[].params`로 왕복되는가?** →
+   **실측 결과 미왕복**(요청 최상위 `contexts`가 매번 빈 배열). 그래서 서버 상태 저장을 포기하고
+   온보딩 진행 상태만 quickReply `messageText`에 실어 나른다.
+3. **`contexts` params의 수명(`lifeSpan`/`ttl`) 만료 동작** — (2)가 미왕복이라 실사용 의미는 작다.
+   에이전트가 이력을 관리하므로 서버 세션 수명 설계와 무관.
 
 ---
 
@@ -213,28 +224,33 @@ interface SkillAction {
 ### 서버 (`apps/server`, Fastify · ESM)
 
 - **`apps/server/src/index.ts`** — Fastify 인스턴스 부트스트랩. `GET /health`(`{ status: "ok" }`)를 직접 정의하고, `skillRoutes`·`echoRoutes`를 register한다. 포트는 `process.env.PORT ?? 3000`.
-- **`apps/server/src/routes/skill.ts`** — `POST /skill`. `request.body`를 `Partial<SkillPayload>`로 받아 **옵셔널 체이닝으로 방어적 파싱**(`body?.userRequest?.utterance ?? ""`)한 뒤 `buildDemoResponse(utterance)` 결과를 반환한다(mock 데모). 요청 타입이 HYPOTHESIS이므로 필드 존재를 가정하지 않는다.
-- **`apps/server/src/routes/echo.ts`** — `POST /echo`. 요청을 **원문 그대로**(`headers` + `body`) `captured-requests/echo-<ISO>.json`(`process.cwd()` 기준)에 저장하고, `userRequest.user.id`·`contexts` 유무를 로깅한다. 응답은 최소 유효 `SkillResponse`(`simpleText`). 요청 계약 실측 확정용.
+- **`apps/server/src/routes/skill.ts`** — `POST /skill`. `parseSkillContext(request.body)`로 **방어적 파싱**(발화·botUserKey·callbackUrl) 후 `selectBlock`으로 디스패치. 콜백 블록(agent 항상·onboarding 완료)은 `handleCallbackBlock`(useCallback ack + 백그라운드 run → callbackUrl POST, 콜백 미설정이면 `SYNC_BUDGET_MS` 내 동기 시도 후 폴백).
+- **`apps/server/src/skill/index.ts`** — 디스패처. `parseSkillContext`·`selectBlock`·`handleSkill`. 서버는 이력·세션을 저장하지 않는다.
+- **`apps/server/src/skill/blocks/`** — `index.ts`(레지스트리: `[onboarding, agent]` + `fallback`), `onboarding.ts`(카드 흐름 + 완료 시 프로필 A2A), `agent.ts`(캐치올 → A2A), `fallback.ts`(빈 발화 안전망).
+- **`apps/server/src/skill/render-agent.ts`** — 에이전트 답변 → `SkillResponse` 변환(임시 어댑터, 형식 확정 시 passthrough로 교체).
+- **`apps/server/src/a2a/`** — `client.ts`(askA2a: SSE 소비)·`config.ts`·`mock.ts`(MSW). 5초 초과라 콜백으로 최종 응답.
+- **`apps/server/src/routes/echo.ts`** — `POST /echo`. 요청을 **원문 그대로**(`headers` + `body`) `captured-requests/echo-<ISO>.json`에 저장하고 `user.id`·`contexts` 유무를 로깅. 요청 계약 실측 확정용.
 
-### 응답 빌더 (mock)
+### 응답 빌더
 
-- **`apps/server/src/builders/outputs.ts`** — `Output`/`Button`/`QuickReply` 조립 헬퍼(`simpleText`·`simpleImage`·`basicCard`·`listCard`·`itemCard`·`carousel`, 버튼/바로가기 헬퍼). contract 타입을 그대로 써 잘못된 조합을 컴파일 타임에 차단.
-- **`apps/server/src/builders/demo.ts`** — 발화에 따라 데모 `SkillResponse`를 만드는 `buildDemoResponse`. `/skill`이 이걸 호출한다. (RAG 연동 시 이 자리가 검색 → 변환으로 교체 예정.)
+- **`apps/server/src/builders/outputs.ts`** — `Output`/`Button`/`QuickReply` 조립 헬퍼(`simpleText`·`simpleImage`·`basicCard`·`listCard`·`itemCard`·`carousel`, 버튼/바로가기). contract 타입을 그대로 써 잘못된 조합을 컴파일 타임에 차단.
 
-> 위 빌더가 생성하는 응답의 구조·컴포넌트·상수는 이 스킬에서 재정의하지 않는다 → [[kakao-skill-response_domain]]의 "구현 위치"(`packages/contract/src/response.ts`) 참고.
+> 응답의 구조·컴포넌트·상수는 이 스킬에서 재정의하지 않는다 → [[kakao-skill-response_domain]]의 "구현 위치"(`packages/contract/src/response.ts`) 참고.
 
 ### 요청 계약 타입
 
-- **`packages/contract/src/request.ts`** — `SkillPayload`(및 `UserRequest`·`SkillUser`·`RequestContext`·`BotRef`·`SkillAction`) 정의. 파일 상단 주석에 **⚠️ HYPOTHESIS**와 위 "검증 대상 3가지"가 그대로 명시돼 있다. `POST /echo` 실측으로 확정 대상.
+- **`packages/contract/src/request.ts`** — `SkillPayload`(및 `UserRequest`·`SkillUser`·`RequestContext`·`BotRef`·`SkillAction`) 정의. 파일 상단 주석에 **⚠️ HYPOTHESIS**가 명시돼 있다. `POST /echo` 실측으로 확정 대상.
 
 ---
 
 ## 핵심 의사 결정 (RAG 프로젝트 관점)
 
-- 이 프로젝트는 **DB를 되도록 쓰지 않으려** 하며, 사용자 데이터를 카카오
-  **context(채팅방 세션)**에 둘 수 있는지 검토 중이다. context는 만료되므로 영구저장의
-  대체가 아니며, 위 **검증 대상 3가지**의 실측 결과가 저장소 결정(무DB vs KV)을 좌우한다.
-- 이 맥락은 [[kakao-skill-response_domain]]의 응답 측 `context` / `block.extra`(컨텍스트 전달
-  채널)와 짝을 이룬다. 즉 응답에서 내보낸 상태가 요청으로 왕복되는지가 핵심 미확정 축이다.
+- **서버는 상태를 저장하지 않는다(stateless).** 대화 이력은 **에이전트(A2A)가 관리**한다 —
+  모든 질의가 에이전트를 거치므로 이력 소유자를 에이전트로 일원화했다. DB·KV·파일 저장소 모두 없음
+  (이전의 botUserKey별 파일 저장소는 제거). `captured-requests/`는 `/echo` 캡처 용도로만 남는다.
+- 이렇게 된 배경엔 카카오 `context` 미왕복(실측)이 있지만, 그 우회로였던 서버 저장소 자체가
+  이제 불필요하다. 서버는 이번 발화(또는 온보딩 완료 프로필)만 에이전트로 넘긴다.
+- 에이전트의 정식 `SkillResponse` 응답 형식은 **추후 확정 예정** — 확정 시 `render-agent`
+  임시 어댑터를 통과(passthrough)로 교체한다.
 - `/echo`를 먼저 붙여 실제 요청을 캡처 → `SkillPayload`를 HYPOTHESIS에서 확정으로 승격 →
   그 결과로 `/skill`의 방어적 파싱을 실제 스펙 기반으로 정리한다.

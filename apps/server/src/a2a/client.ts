@@ -1,31 +1,17 @@
 import { randomUUID } from "node:crypto";
 import { A2A_AUTH, A2A_ENDPOINT, A2A_PROTOCOL, A2A_TIMEOUT_MS } from "./config.js";
 
-/** A2A/RAG 요청 페이로드 — 단발 질문 또는 대화 이력(RAG 검색). */
+/**
+ * A2A/RAG 요청 페이로드 — 이번 발화(또는 온보딩 완료 프로필) 한 건의 질문.
+ * 대화 이력은 서버가 아니라 에이전트가 관리하므로, 서버는 단발 질문만 넘긴다.
+ */
 export interface A2aRequest {
   question?: string;
-  /** RAG 검색: 지금까지의 대화 이력 전체. 트랜스크립트로 합쳐 질의 텍스트로 만든다. */
-  messages?: { role: string; content: string }[];
 }
 
-/**
- * 요청 입력을 A2A 메시지 텍스트 한 덩어리로 만든다.
- * 에이전트가 잘 응답하도록 **사용자 발화만 한 줄로 모아 작업 지시형**으로 만든다
- * (봇 카드 텍스트·여러 줄 트랜스크립트는 일부 에이전트가 막힘 — 실측).
- */
+/** 요청 입력을 A2A 메시지 텍스트 한 덩어리로 만든다. */
 function buildQueryText(input: A2aRequest | string): string {
   if (typeof input === "string") return input;
-  if (input.messages?.length) {
-    const userTurns = input.messages
-      .filter((m) => m.role === "user")
-      .map((m) => m.content.replace(/\s+/g, " ").trim())
-      .filter(Boolean);
-    if (userTurns.length) {
-      // ⚠️ 현재 연결된 에이전트(llamon)가 '창작/작성' 태스크에 안정적으로 응답해, 그에 맞춰 생성형으로
-      //    프레이밍한다. 실제 복지 RAG로 교체 시엔 사실 질의형으로 바꾸는 게 낫다.
-      return `복지 상담 챗봇으로서, 사용자가 문의한 다음 항목들을 소개하는 친절한 안내 글을 한 단락으로 작성해줘: ${userTurns.join(", ")}.`;
-    }
-  }
   return input.question ?? "";
 }
 

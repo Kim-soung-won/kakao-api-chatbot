@@ -14,9 +14,11 @@ packages/
     src/request.ts     SkillPayload (⚠️ HYPOTHESIS — /echo 실측으로 확정 대상)
 apps/
   server/            스킬 서버 (Fastify, ESM)
-    src/routes/skill.ts   POST /skill — 발화 → mock SkillResponse (추후 RAG 변환)
+    src/routes/skill.ts   POST /skill — 발화 → 블록 디스패치(onboarding·agent) → SkillResponse
     src/routes/echo.ts    POST /echo  — 실제 카카오 요청 원문 캡처 (captured-requests/)
-    src/builders/         contract 타입 기반 응답 빌더 + 데모
+    src/skill/            디스패처 + 블록(onboarding·agent·fallback) + render-agent(임시 어댑터)
+    src/a2a/              A2A 에이전트 클라이언트·설정·목업 (모든 질의를 에이전트로)
+    src/builders/         contract 타입 기반 응답 컴포넌트 빌더
     .env                  개인 카카오 key 자리 (gitignore, .env.example 참고)
   playground/        카카오톡 채팅창 렌더러 흉내 + 요청 시뮬레이터 (React + Vite)
     src/renderer/KakaoRenderer.tsx   SkillResponse → 카드/버튼/캐러셀 렌더
@@ -31,10 +33,12 @@ apps/
    `MAX_ITEMCARD_ROWS` 등)도 여기서 export → validate.ts가 그대로 재사용.
 2. **요청 계약은 아직 가설이다.** 카카오 공개 문서에 요청 JSON 스펙이 없어
    `request.ts`는 HYPOTHESIS로 둔다. `/skill`은 요청을 방어적으로(옵셔널 체이닝) 파싱.
-   `/echo`로 실제 요청을 캡처해 ①user.id(botUserKey) 세션 간 고정성 ②context.params
-   왕복 여부 ③params 수명을 실측 확정한 뒤 저장소(무DB vs KV)를 결정한다.
-3. **DB는 되도록 쓰지 않는다.** 대화 상태는 카카오 `context`(만료됨)로, 영속 데이터가
-   꼭 필요하면 botUserKey 기반 KV. 이 결정은 위 /echo 실측 결과에 달려 있다.
+   `/echo`로 실제 요청을 캡처해 user.id(botUserKey) 안정성 등을 실측한다. (context.params는
+   실측 결과 **미왕복** — 서버 상태 저장을 포기한 근거.)
+3. **서버는 상태를 저장하지 않는다.** 모든 질의가 에이전트(A2A)를 거치고, **대화 이력은
+   에이전트가 관리**한다. 온보딩(카드 흐름)만 로컬이고 그 외 모든 발화는 agent 블록이 에이전트로
+   넘긴다. 온보딩 완료 시 수집 프로필을 에이전트로 전달. 에이전트 대화 "모드"(진입/종료)는 없다.
+   에이전트의 정식 SkillResponse 응답 형식은 추후 확정 예정(그전까지 render-agent가 임시 변환).
 
 ## 구현 상태
 
@@ -56,9 +60,9 @@ pnpm --filter @sprint-kakao/server dev       # :3000  (tsx watch, .env 필요)
 pnpm --filter @sprint-kakao/playground dev   # :5173  (/skill·/echo → :3000 프록시)
 ```
 
-playground에서 발화 입력 또는 하단 바로가기로 데모를 렌더하고, 응답마다 제약 위반 경고와
-원문 JSON(토글)을 확인한다. 데모 트리거: `카드`·`리스트`·`이미지`·`캐러셀`·`위반`·
-`복지도우미`·`복지`.
+playground는 발화를 서버 `/skill`로 보내 응답을 렌더하고, 응답마다 제약 위반 경고와 원문
+JSON(토글)을 확인한다. `맞춤복지` → 온보딩 카드 흐름, 그 외 발화 → 에이전트(A2A) 응답.
+(A2A는 로컬에서 `A2A_MOCK=1` 목업으로 검증.)
 
 ## 도메인 지식 (스킬 참조)
 

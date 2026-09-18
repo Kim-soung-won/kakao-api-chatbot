@@ -1,6 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import type { SkillCallbackAck, SkillResponse } from "@sprint-kakao/contract";
-import { applyModeEffect, parseSkillContext, recordTurn, selectBlock } from "../skill/index.js";
+import { parseSkillContext, selectBlock } from "../skill/index.js";
 import type { SkillBlock, SkillContext } from "../skill/index.js";
 import { skillPayloadSchema, skillResponseSchema } from "../schemas.js";
 
@@ -10,8 +10,8 @@ const SYNC_BUDGET_MS = Number(process.env["SYNC_BUDGET_MS"] ?? 3500);
 /**
  * POST /skill
  * 카카오 스킬 서버 본 엔드포인트.
- * - 일반 블록: 동기로 SkillResponse 반환.
- * - 콜백 블록(A2A·RAG 등 5초 초과): callbackUrl 있으면 즉시 useCallback 대기응답 후
+ * - onboarding 카드 단계: 동기로 SkillResponse 반환.
+ * - 콜백 블록(agent·onboarding 완료 등 5초 초과): callbackUrl 있으면 즉시 useCallback 대기응답 후
  *   백그라운드에서 최종 응답을 callbackUrl로 POST. 없으면 동기 await(로컬 데모).
  */
 export async function skillRoutes(app: FastifyInstance): Promise<void> {
@@ -22,7 +22,7 @@ export async function skillRoutes(app: FastifyInstance): Promise<void> {
         tags: ["skill"],
         summary: "카카오 스킬 웹훅 — 발화 처리 후 SkillResponse 반환",
         description:
-          "카카오 오픈빌더가 등록된 스킬 URL로 POST한다. 발화별 블록으로 디스패치. 5초 초과 처리(A2A·RAG)는 콜백 플로우로 반환. 요청 타입은 가설이라 방어적으로 파싱한다.",
+          "카카오 오픈빌더가 등록된 스킬 URL로 POST한다. 온보딩 외 모든 발화는 에이전트로 디스패치. 5초 초과 처리(A2A)는 콜백 플로우로 반환. 요청 타입은 가설이라 방어적으로 파싱한다.",
         body: skillPayloadSchema,
         response: { 200: skillResponseSchema },
       },
@@ -32,24 +32,20 @@ export async function skillRoutes(app: FastifyInstance): Promise<void> {
       console.log("[/skill] headers:", JSON.stringify(request.headers, null, 2));
       console.log("[/skill] body:", JSON.stringify(request.body, null, 2));
 
-      const ctx = await parseSkillContext(request.body);
+      const ctx = parseSkillContext(request.body);
       const block = selectBlock(ctx);
       // 콜백 수신 여부를 명확히 로깅(콜백 미설정이면 5초 초과 처리는 폴백만 가능).
       console.log(
-        `[/skill] utterance="${ctx.utterance}" mode=${ctx.mode ?? "menu"} block=${block.name} callbackUrl=${ctx.callbackUrl ? "있음(콜백 활성)" : "없음(콜백 미설정→폴백)"}`,
+        `[/skill] utterance="${ctx.utterance}" block=${block.name} callbackUrl=${ctx.callbackUrl ? "있음(콜백 활성)" : "없음(콜백 미설정→폴백)"}`,
       );
-
-      // 블록이 선언한 세션 모드 전환(연결/해제)을 응답 생성 전에 반영한다.
-      await applyModeEffect(ctx, block);
 
       if (block.callback && (block.callback.when?.(ctx) ?? true)) {
         return handleCallbackBlock(app, block, ctx);
       }
 
       const response = block.respond(ctx);
-      await recordTurn(ctx, block, response);
       request.log.info(
-        { utterance: ctx.utterance, userId: ctx.userId, historyTurns: ctx.history.length, block: block.name },
+        { utterance: ctx.utterance, userId: ctx.userId, block: block.name },
         "skill dispatched",
       );
       return response;
@@ -75,7 +71,6 @@ function handleCallbackBlock(
     void (async () => {
       try {
         const response = await cb.run(ctx);
-        await recordTurn(ctx, block, response);
         const res = await fetch(callbackUrl, {
           method: "POST",
           headers: { "content-type": "application/json" },
@@ -101,7 +96,7 @@ function handleCallbackBlock(
     return { version: "2.0", useCallback: true, data: { text: cb.waitingText } };
   }
 
-  // callbackUrl 없음(콜백 미설정): 카카오 5초 제한 때문에 30초를 붙잡으면 1001 타임아웃이 난다.
+  // callbackUrl 없음(콜백 미설정): 카카오 5초 제한 때문에 오래 붙잡으면 1001 타임아웃이 난다.
   // → SYNC_BUDGET_MS(카카오 5초보다 짧게) 안에서만 동기 시도하고, 초과하면 즉시 정적 폴백.
   //   (A2A_DURATION_MS를 예산보다 낮추면 콜백 없이도 실제 A2A 답변을 5초 안에 받을 수 있다.)
   const timedOut = Symbol("timeout");
@@ -111,7 +106,7 @@ function handleCallbackBlock(
       return null;
     }),
     new Promise<typeof timedOut>((res) => setTimeout(() => res(timedOut), SYNC_BUDGET_MS)),
-  ]).then(async (result) => {
+  ]).then((result) => {
     if (result === timedOut || result === null) {
       app.log.warn(
         { block: block.name, budgetMs: SYNC_BUDGET_MS },
@@ -119,7 +114,6 @@ function handleCallbackBlock(
       );
       return block.respond(ctx);
     }
-    await recordTurn(ctx, block, result);
     return result;
   });
 }

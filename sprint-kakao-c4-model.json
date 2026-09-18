@@ -79,8 +79,9 @@
       "connections": [
         {
           "targetId": "sys-rag",
-          "label": "질의 → 답변 (다음 단계)",
-          "technology": "https"
+          "label": "발화/프로필 질의 → 답변 (SSE, 콜백)",
+          "technology": "https",
+          "description": "온보딩 외 모든 발화(agent 블록)와 온보딩 완료 프로필을 A2A로 전송하고 SSE로 답변을 받아 SkillResponse로 변환. 5초 초과라 카카오 콜백으로 최종 응답. ⚠️ 현재 엔드포인트는 임시 목업(llamon), 실제 복지 RAG로 교체 예정."
         },
         {
           "targetId": "sys-kakao-api",
@@ -95,7 +96,7 @@
       "name": "RAG 백엔드 (A2A · 임시 목업)",
       "type": "system",
       "technology": "python",
-      "description": "⚠️ 임시 테스트/목업 — 추후 실제 복지 도메인 RAG 백엔드로 교체 예정. 현재는 외부 데모 A2A 에이전트(llamon, REST+SSE)에 고정 연결돼 \"RAG 검색\"이 대화 이력을 보내 답변을 받는다. A2A_ENDPOINT/A2A_PROTOCOL/A2A_AUTH(env)만 바꾸면 실제 RAG로 전환. SSE 프로토콜은 rest(llamon)·jsonrpc(Google ADK) 모두 지원.",
+      "description": "⚠️ 임시 테스트/목업 — 추후 실제 복지 도메인 RAG 백엔드로 교체 예정. 현재는 외부 데모 A2A 에이전트(llamon, REST+SSE)에 고정 연결돼, 온보딩 외 모든 발화(및 온보딩 완료 프로필)를 받아 답변을 돌려준다. 대화 이력은 이 에이전트가 관리한다(서버 무저장). A2A_ENDPOINT/A2A_PROTOCOL/A2A_AUTH(env)만 바꾸면 실제 RAG로 전환. SSE 프로토콜은 rest(llamon)·jsonrpc(Google ADK) 모두 지원.",
       "position": {
         "x": 1200,
         "y": 0
@@ -157,7 +158,7 @@
       "type": "container",
       "systemId": "sys-kakao-skill",
       "technology": "typescript",
-      "description": "Fastify(ESM) 기반 스킬 서버. POST /skill(발화→블록 디스패치→SkillResponse, 매 턴 대화 이력을 botUserKey별로 적재; \"RAG 검색\"은 누적 이력을 A2A로 전송, \"AI 안내서비스 연결\"은 세션을 에이전트 대화 모드로 전환해 이후 발화를 A2A로 흘려보냄), POST /echo(실제 요청 원문 캡처), GET /health. 개인 카카오 키는 .env로 로드. :3000.",
+      "description": "Fastify(ESM) 기반 스킬 서버. POST /skill(발화→블록 디스패치→SkillResponse; 온보딩 카드 흐름 외 모든 발화는 agent 블록이 A2A로 전달, 온보딩 완료 시 수집 프로필을 A2A로 전달). 서버는 대화 이력·세션 모드를 저장하지 않는다(에이전트가 관리). POST /echo(실제 요청 원문 캡처), GET /health. 개인 카카오 키는 .env로 로드. :3000.",
       "position": {
         "x": 400,
         "y": 100
@@ -173,15 +174,15 @@
         },
         {
           "targetId": "cont-captured",
-          "label": "/echo 원문 기록 + 대화 이력(history/) read·write",
+          "label": "/echo 원문 기록 (read·write)",
           "technology": "file",
-          "description": "카카오 output context 왕복이 실측상 미동작이라, 대화 이력을 botUserKey별 JSON 파일로 적재. /echo 원문 캡처와 같은 볼륨."
+          "description": "POST /echo가 실제 카카오 요청 원문을 타임스탬프 JSON으로 남긴다. (대화 이력 파일 저장소는 제거됨 — 이력은 에이전트가 관리.)"
         },
         {
           "targetId": "sys-rag",
-          "label": "대화 이력(ragRequest) POST — 다음 단계",
+          "label": "발화/프로필 A2A 질의",
           "technology": "http",
-          "description": "RAG 백엔드 연동 시 누적 대화 이력을 검색 요청으로 전송하고 응답을 SkillResponse로 변환. 현재는 \"RAG 검색\" 블록이 이 페이로드(data.ragRequest)를 시뮬레이션."
+          "description": "agent 블록은 발화를, 온보딩 완료는 수집 프로필을 A2A/RAG로 전송하고 응답을 SkillResponse로 변환. 대화 이력은 에이전트가 관리하므로 서버는 이번 입력만 넘긴다. ⚠️ 현재 임시 목업(llamon) — 실제 복지 RAG로 교체 예정."
         }
       ]
     },
@@ -204,7 +205,7 @@
       "type": "container",
       "systemId": "sys-kakao-skill",
       "technology": "storage",
-      "description": "로컬 파일 저장소(docker 볼륨). 두 용도: (1) POST /echo가 실제 카카오 요청 원문을 타임스탬프 JSON으로 기록. (2) 대화 이력을 history/<botUserKey>.json으로 적재(RAG 전송 소스).",
+      "description": "로컬 파일 저장소(docker 볼륨). POST /echo가 실제 카카오 요청 원문을 타임스탬프 JSON으로 기록한다. (이전의 대화 이력·세션 하위 폴더는 제거됨 — 이력은 에이전트가 관리.)",
       "position": {
         "x": 800,
         "y": 250
@@ -243,7 +244,7 @@
       "systemId": "sys-kakao-skill",
       "containerId": "cont-server",
       "technology": "typescript",
-      "description": "카카오 웹훅 진입점. 요청 원문(헤더·바디)을 로깅하고 스킬 디스패처에 위임한다: 컨텍스트 파싱(발화·botUserKey·이력·세션모드) → 블록 선택 → 세션 모드 전환 반영(applyModeEffect) → 동기 응답(respond) 또는 5초 초과 시 콜백 플로우(handleCallbackBlock). callbackUrl 있으면 즉시 useCallback 대기응답 후 백그라운드에서 최종 응답을 callbackUrl로 POST, 없으면 SYNC_BUDGET_MS 내 동기 시도 후 정적 폴백.",
+      "description": "카카오 웹훅 진입점. 요청 원문(헤더·바디)을 로깅하고 스킬 디스패처에 위임한다: 컨텍스트 파싱(발화·botUserKey·callbackUrl) → 블록 선택 → 동기 응답(respond) 또는 콜백 블록(agent 항상·onboarding 완료)이면 콜백 플로우(handleCallbackBlock). callbackUrl 있으면 즉시 useCallback 대기응답 후 백그라운드에서 최종 응답을 callbackUrl로 POST, 없으면 SYNC_BUDGET_MS 내 동기 시도 후 정적 폴백. 서버는 이력·세션을 저장하지 않는다.",
       "position": {
         "x": 400,
         "y": 0
@@ -251,7 +252,7 @@
       "connections": [
         {
           "targetId": "comp-dispatcher",
-          "label": "컨텍스트 파싱·블록 디스패치·모드 반영"
+          "label": "컨텍스트 파싱·블록 디스패치"
         }
       ]
     },
@@ -271,12 +272,12 @@
     },
     {
       "id": "comp-builders",
-      "name": "응답 빌더 (outputs · demo)",
+      "name": "응답 빌더 (outputs)",
       "type": "component",
       "systemId": "sys-kakao-skill",
       "containerId": "cont-server",
       "technology": "typescript",
-      "description": "contract 타입으로 SkillResponse 출력 컴포넌트(simpleText·basicCard·listCard·itemCard·carousel)와 버튼을 조립. 발화별 mock 데모(강서구 itemCard 재현 포함).",
+      "description": "contract 타입으로 SkillResponse 출력 컴포넌트(simpleText·simpleImage·basicCard·listCard·itemCard·carousel)와 버튼·바로가기를 조립하는 프리미티브 헬퍼(builders/outputs.ts). 잘못된 조합을 컴파일 타임에 차단. onboarding·fallback·render-agent가 사용.",
       "position": {
         "x": 800,
         "y": 0
@@ -349,32 +350,13 @@
       "connections": []
     },
     {
-      "id": "comp-history",
-      "name": "대화 이력 저장소 (history-store)",
-      "type": "component",
-      "systemId": "sys-kakao-skill",
-      "containerId": "cont-server",
-      "technology": "typescript",
-      "description": "botUserKey(userRequest.user.id)별 대화 이력을 captured-requests/history/<userId>.json 파일로 적재·조회. 매 /skill 턴에서 이전 이력 로드→이번 턴 append→저장. RAG 전송 소스. 카카오 output context 왕복이 실측상 미동작이라 context 대신 파일 저장소 채택.",
-      "position": {
-        "x": 700,
-        "y": 0
-      },
-      "connections": [
-        {
-          "targetId": "cont-captured",
-          "label": "이력 파일 read/write"
-        }
-      ]
-    },
-    {
       "id": "comp-a2a",
       "name": "RAG/A2A 연동 (client·mock)",
       "type": "component",
       "systemId": "sys-kakao-skill",
       "containerId": "cont-server",
       "technology": "typescript",
-      "description": "외부 A2A/RAG 에이전트에 SSE로 질의하고 스트림을 소비해 최종 답변을 받는다(client.ts). rest({message}+Bearer)·jsonrpc(message/stream) 두 프로토콜 지원, [DONE]/final에서 종료. 두 호출자: \"RAG 검색\"은 누적 대화 이력을 텍스트로 합쳐 전송, \"agent-chat\"(에이전트 대화 모드)은 현재 발화 한 건을 질문으로 전송. ⚠️ 현재 엔드포인트는 임시 테스트(llamon 데모) — 추후 실제 RAG로 교체. 오프라인은 MSW 목업. 5초 초과라 카카오 콜백으로 최종 응답 POST.",
+      "description": "외부 A2A/RAG 에이전트에 SSE로 질의하고 스트림을 소비해 최종 답변을 받는다(client.ts). rest({message}+Bearer)·jsonrpc(message/stream) 두 프로토콜 지원, [DONE]/final에서 종료. 두 호출자: agent 블록은 현재 발화 한 건을, onboarding 완료 단계는 수집 프로필(지역·가구·관심)을 질의로 전송. 대화 이력은 서버가 저장하지 않고 에이전트가 관리한다. ⚠️ 현재 엔드포인트는 임시 테스트(llamon 데모) — 추후 실제 RAG로 교체. 오프라인은 MSW 목업. 5초 초과라 카카오 콜백으로 최종 응답 POST.",
       "position": {
         "x": 700,
         "y": 150
@@ -394,7 +376,7 @@
       "systemId": "sys-kakao-skill",
       "containerId": "cont-server",
       "technology": "typescript",
-      "description": "skill/index.ts + blocks/. 요청 payload → SkillContext(발화·botUserKey·대화이력·세션모드) 파싱 후, 블록 레지스트리를 매칭 순서(connect→exit→agent-chat→rag-search→onboarding→help→welfare→fallback)대로 평가해 처리 블록을 고른다(selectBlock). 블록의 setMode(연결/해제)를 세션 저장소에 반영(applyModeEffect), 이번 턴을 이력에 적재(recordTurn). 개별 블록은 code 레벨 하위 레이어로 분해.",
+      "description": "skill/index.ts + blocks/. 요청 payload → SkillContext(발화·botUserKey·callbackUrl) 파싱 후, 블록 레지스트리를 매칭 순서(onboarding→agent)대로 평가해 처리 블록을 고른다(selectBlock). 서버는 대화 이력·세션 모드를 저장하지 않는다(에이전트가 관리, 모드 개념 폐기). 온보딩 외 모든 발화는 agent 블록이 A2A로 전달. 개별 블록은 code 레벨 하위 레이어로 분해.",
       "position": {
         "x": 400,
         "y": 500
@@ -405,36 +387,14 @@
           "label": "블록 응답 출력 컴포넌트 조립"
         },
         {
-          "targetId": "comp-history",
-          "label": "대화 이력 로드/적재"
-        },
-        {
-          "targetId": "comp-session",
-          "label": "세션 모드 로드/저장"
-        },
-        {
           "targetId": "comp-render",
           "label": "에이전트 답변 카드/텍스트 렌더"
         },
         {
           "targetId": "comp-a2a",
-          "label": "A2A 질의 (agent-chat·RAG 검색)"
+          "label": "A2A 질의 (agent·온보딩 완료)"
         }
       ]
-    },
-    {
-      "id": "comp-session",
-      "name": "세션 모드 저장소 (session-store)",
-      "type": "component",
-      "systemId": "sys-kakao-skill",
-      "containerId": "cont-server",
-      "technology": "typescript",
-      "description": "botUserKey별 대화 모드(undefined=메뉴 / \"agent\"=AI 안내서비스 연결)를 captured-requests/session/<userId>.json 파일로 적재·조회·해제(연결 시 저장, 종료 시 파일 삭제). 카카오 output context가 왕복되지 않아(실측 d10) 세션 상태를 서버가 botUserKey 키로 보관. 이력 저장소와 동일 볼륨·동일 근거.",
-      "position": {
-        "x": 700,
-        "y": 400
-      },
-      "connections": []
     },
     {
       "id": "comp-render",
@@ -443,7 +403,7 @@
       "systemId": "sys-kakao-skill",
       "containerId": "cont-server",
       "technology": "typescript",
-      "description": "A2A 에이전트의 평문/JSON 답변을 케이스별 SkillResponse 출력으로 변환한다: 구조화 JSON(SkillResponse/Output/카드 오브젝트) 통과 / 링크 포함→basicCard+webLink 버튼 / 불릿·번호 목록→listCard / 그 외→simpleText. contract 제약 상수(TEXT_LIMITS·MAX_LIST_ITEMS·MAX_OUTPUTS)로 길이·개수를 절단하고, 에이전트 출력은 신뢰 경계 밖이라 실패 시 simpleText로 안전 폴백. 종료 안내 말풍선 자리를 위해 출력 개수를 MAX_OUTPUTS 미만으로 유지.",
+      "description": "⚠️ 임시 어댑터. A2A 에이전트의 평문/JSON 답변을 케이스별 SkillResponse 출력으로 변환한다: 구조화 JSON(SkillResponse/Output/카드 오브젝트) 통과 / 링크 포함→basicCard+webLink 버튼 / 불릿·번호 목록→listCard / 그 외→simpleText. contract 제약 상수(TEXT_LIMITS·MAX_LIST_ITEMS·MAX_OUTPUTS)로 길이·개수를 절단하고, 에이전트 출력은 신뢰 경계 밖이라 실패 시 simpleText로 안전 폴백. 에이전트의 정식 SkillResponse 응답 형식이 확정되면 이 어댑터를 통과(passthrough)로 교체 예정.",
       "position": {
         "x": 1000,
         "y": 250
@@ -453,77 +413,6 @@
   ],
   "codeElements": [
     {
-      "id": "code-block-connect",
-      "name": "connect 블록",
-      "type": "code",
-      "systemId": "sys-kakao-skill",
-      "containerId": "cont-server",
-      "componentId": "comp-dispatcher",
-      "codeType": "variable",
-      "technology": "typescript",
-      "description": "\"AI 안내서비스 연결\" 발화 → 에이전트 대화 모드 진입(setMode:\"agent\"). 진입 안내 말풍선만 동기 반환(A2A 미호출). 매칭 순서 최우선이라 이미 agent 모드여도 재진입 인사로 동작.",
-      "position": {
-        "x": 0,
-        "y": 0
-      },
-      "connections": []
-    },
-    {
-      "id": "code-block-exit",
-      "name": "exit 블록",
-      "type": "code",
-      "systemId": "sys-kakao-skill",
-      "containerId": "cont-server",
-      "componentId": "comp-dispatcher",
-      "codeType": "variable",
-      "technology": "typescript",
-      "description": "\"종료·대화 종료·연결 해제·처음·그만·취소·리셋\" → 세션 모드 해제(setMode:null) + 온보딩 시작으로 리셋. 매칭 순서상 agent-chat보다 앞이라, 에이전트 대화 모드 중에도 이탈 키워드가 에이전트로 넘어가지 않는다.",
-      "position": {
-        "x": 0,
-        "y": 250
-      },
-      "connections": [
-        {
-          "targetId": "code-block-onboarding",
-          "label": "초기화 위임 (onboarding.respond)",
-          "technology": "grpc",
-          "description": "인프로세스 호출 — 탈출 시 온보딩 시작 화면을 재사용한다."
-        }
-      ]
-    },
-    {
-      "id": "code-block-agent-chat",
-      "name": "agent-chat 블록",
-      "type": "code",
-      "systemId": "sys-kakao-skill",
-      "containerId": "cont-server",
-      "componentId": "comp-dispatcher",
-      "codeType": "variable",
-      "technology": "typescript",
-      "description": "세션이 agent 모드일 때의 캐치올. 발화를 A2A 에이전트로 전달(단발 질문), 답변을 render-agent로 케이스별 카드/텍스트 렌더 + 매 응답 끝에 '종료' 안내 말풍선을 항상 덧붙인다. 5초 초과라 콜백 플로우(callbackUrl 있으면 대기응답 후 백그라운드 POST, 없으면 예산 내 동기 시도 후 폴백).",
-      "position": {
-        "x": 400,
-        "y": 0
-      },
-      "connections": []
-    },
-    {
-      "id": "code-block-rag-search",
-      "name": "rag-search 블록",
-      "type": "code",
-      "systemId": "sys-kakao-skill",
-      "containerId": "cont-server",
-      "componentId": "comp-dispatcher",
-      "codeType": "variable",
-      "technology": "typescript",
-      "description": "\"RAG 검색\" 발화 → 누적 대화 이력 전체를 A2A로 전송해 답변(콜백). 이력이 없으면 안내 + 수신 진단(contexts·user.id)만 반환. transient(이 메타 명령은 이력에 미기록).",
-      "position": {
-        "x": 400,
-        "y": 250
-      },
-      "connections": []
-    },
-    {
       "id": "code-block-onboarding",
       "name": "onboarding 블록",
       "type": "code",
@@ -532,44 +421,38 @@
       "componentId": "comp-dispatcher",
       "codeType": "variable",
       "technology": "typescript",
-      "description": "맞춤 복지 온보딩 시나리오: 지역→가구유형→관심분야→맞춤 메뉴. 각 단계 선택 값이 다음 발화로 넘어와 선형으로 진행. exit 블록의 리셋 대상.",
+      "description": "맞춤 복지 온보딩 시나리오: 지역→가구유형→관심분야→완료. 카드 단계는 동기 respond이고, 앞 단계 선택은 다음 quickReply messageText에 누적해 나른다(서버 무저장, context 미왕복 회피 — 구분자 ' / '). 완료 단계(3조각)만 callback.when으로 에이전트를 호출해 수집 프로필(지역·가구·관심)을 A2A로 전송하고 맞춤 안내를 표출한다.",
       "position": {
         "x": 0,
-        "y": 500
-      },
-      "connections": []
-    },
-    {
-      "id": "code-block-help",
-      "name": "help 블록",
-      "type": "code",
-      "systemId": "sys-kakao-skill",
-      "containerId": "cont-server",
-      "componentId": "comp-dispatcher",
-      "codeType": "variable",
-      "technology": "typescript",
-      "description": "이용안내·도움말: 봇 기능 소개 + 주요 진입점(맞춤복지·복지·상담원 연결)을 basicCard로 안내.",
-      "position": {
-        "x": 800,
-        "y": 0
-      },
-      "connections": []
-    },
-    {
-      "id": "code-block-welfare",
-      "name": "welfare 블록",
-      "type": "code",
-      "systemId": "sys-kakao-skill",
-      "containerId": "cont-server",
-      "componentId": "comp-dispatcher",
-      "codeType": "variable",
-      "technology": "typescript",
-      "description": "복지 항목 안내(보육료·교육활동비·한국어교육·취업·의료·주거 등) 키워드 응답. 온보딩 결과 메뉴(welfareMenu)도 제공.",
-      "position": {
-        "x": 800,
         "y": 250
       },
-      "connections": []
+      "connections": [
+        {
+          "targetId": "comp-a2a",
+          "label": "완료 시 프로필 A2A 질의"
+        }
+      ]
+    },
+    {
+      "id": "code-block-agent",
+      "name": "agent 블록 (캐치올)",
+      "type": "code",
+      "systemId": "sys-kakao-skill",
+      "containerId": "cont-server",
+      "componentId": "comp-dispatcher",
+      "codeType": "variable",
+      "technology": "typescript",
+      "description": "온보딩을 제외한 모든 발화의 캐치올(match: 발화 있음). 발화를 A2A 에이전트로 단발 전달하고 답변을 render-agent로 SkillResponse 렌더. 대화 이력은 서버가 저장하지 않고 에이전트가 관리. 5초 초과라 콜백 플로우(callbackUrl 있으면 대기응답 후 백그라운드 POST, 없으면 예산 내 동기 시도 후 폴백). ※ 이전 connect/exit/agent-chat '에이전트 대화 모드'는 폐기 — 진입/종료 없이 항상 에이전트로 흐른다.",
+      "position": {
+        "x": 400,
+        "y": 250
+      },
+      "connections": [
+        {
+          "targetId": "comp-a2a",
+          "label": "발화 A2A 질의"
+        }
+      ]
     },
     {
       "id": "code-block-fallback",
@@ -580,10 +463,10 @@
       "componentId": "comp-dispatcher",
       "codeType": "variable",
       "technology": "typescript",
-      "description": "어떤 블록도 매칭되지 않으면 응답하는 항상-마지막 안전망. 네비 바로가기(NAV_QUICK_REPLIES)로 주요 진입점을 다시 노출.",
+      "description": "최종 안전망(주로 빈 발화). 자유 질문은 agent 블록이 처리하므로 여기 도달은 발화가 비었을 때 정도. NAV_QUICK_REPLIES로 진입점 노출.",
       "position": {
         "x": 800,
-        "y": 500
+        "y": 250
       },
       "connections": []
     }
@@ -648,7 +531,7 @@
         "parentId": "ec2",
         "containerId": "cont-captured",
         "environment": "prod",
-        "description": "Docker 볼륨(./captured-requests → /app/captured-requests). /echo 원문 + 대화 이력(history/<botUserKey>.json) 저장. 컨테이너 재생성에도 보존.",
+        "description": "Docker 볼륨(./captured-requests → /app/captured-requests). POST /echo 요청 원문(echo-<ISO>.json) 저장. 컨테이너 재생성에도 보존. (대화 이력·세션 하위 폴더는 제거됨 — 이력은 에이전트가 관리.)",
         "position": {
           "x": 20,
           "y": 260
@@ -663,20 +546,21 @@
     "glossary": {
       "스킬 서버": "카카오 챗봇이 POST로 호출하는 우리 응답 웹훅 서버",
       "SkillResponse": "카카오가 채팅창에 렌더링하는 응답 JSON 계약(version 2.0)",
-      "botUserKey": "봇+사용자 조합 식별키로 추정되는 값 (세션 간 고정성 미확정)",
+      "botUserKey": "봇+사용자 조합 식별키로 추정되는 값 (세션 간 고정성 미확정). 이제 로깅·에이전트 전달용 식별자로만 쓰인다(서버는 이력 미저장)",
       "알림톡": "사전 승인된 템플릿으로 보내는 정보성 메시지. 채널 친구가 아니어도 발송 가능(비즈메시지 API)",
       "친구톡": "채널을 친구 추가한 사용자에게만 보내는 정보·광고성 메시지(비즈메시지 API)",
-      "AI 안내서비스 연결": "이 발화로 세션을 에이전트 대화 모드로 전환하는 트리거(connect 블록)",
-      "에이전트 대화 모드": "세션이 agent 상태일 때 탈출 키워드를 제외한 모든 발화가 A2A 에이전트로 전달되는 모드. 모드는 session-store가 botUserKey별로 보관하며 '종료' 등으로 해제"
+      "agent 블록": "온보딩을 제외한 모든 발화를 A2A 에이전트로 전달하는 캐치올 블록(별도 진입/종료 모드 없음)",
+      "온보딩 프로필": "지역·가구유형·관심분야 3조각. 카드 흐름으로 수집하고(quickReply messageText에 누적) 완료 시 에이전트로 일괄 전달한다"
     },
     "decisions": [
       {
         "id": "d1",
         "topic": "데이터 저장소",
-        "choice": "DB는 쓰지 않되, 대화 이력은 botUserKey별 파일 저장소로 관리한다(카카오 context 왕복은 실측상 미동작)",
-        "why": "운영 단순화 목표는 유지하되, 카카오 output context 왕복이 실서비스에서 동작하지 않음을 확인(진단상 요청 최상위 contexts가 매번 빈 배열). 대신 안정적인 botUserKey를 키로 한 파일 저장소(docker 볼륨)로 이력을 보관한다. 상시 RDB는 여전히 회피.",
+        "choice": "서버는 상태를 저장하지 않는다(stateless). 대화 이력은 에이전트가 관리한다.",
+        "why": "모든 질의가 에이전트를 거치므로 이력의 단일 소유자를 에이전트로 일원화했다(서버가 별도로 쌓으면 이중 관리·불일치). 이전의 botUserKey별 파일 저장소(history/session)는 제거. DB/RDB는 애초에 회피. 카카오 output context 왕복 미동작(실측)은 여전하지만, 그 우회로였던 서버 파일 저장소 자체가 불필요해졌다. → d10에서 상세 승격.",
         "rejected": [
-          "RDB 상시 운영"
+          "RDB 상시 운영",
+          "서버측 대화 이력 파일 저장소(이전 방식 — 제거)"
         ],
         "relatedIds": [
           "sys-kakao-skill"
@@ -711,11 +595,12 @@
         "id": "d4",
         "topic": "로컬 공개 노출",
         "choice": "cloudflared 또는 ssh(localhost.run) 터널로 로컬 서버를 공개 HTTPS로 노출",
-        "why": "실측 단계라 클라우드 배포 전에 설치·계정 부담 없이 카카오가 접근할 HTTPS URL이 필요. HTTPS 강제는 실측 확정(2026-09-17): 평문 http URL(bore 터널)로 스킬서버 전송 시 카카오가 TLS로 접속을 강제해 'not an SSL/TLS record'로 실패 → https 종단 터널만 유효, bore 등 평문 http 릴레이는 연동 불가(디버깅 전용). 상세 docs/https-requirement-test.md.",
+        "why": "실측 단계라 클라우드 배포 전에 설치·계정 부담 없이 카카오가 접근할 HTTPS URL이 필요. 실측 확정(2026-09-17): ①평문 http URL(bore 터널)은 카카오가 TLS로 접속을 강제해 'not an SSL/TLS record'로 실패, ②self-signed(mkcert 사설 CA) HTTPS(nginx 종단 + bore raw TCP 패스스루)도 거부 → 공인 CA(공개 신뢰) 인증서로 https를 종단하는 터널만 유효. bore 평문 http·self-signed HTTPS 모두 연동 불가(디버깅 전용). 상세 docs/https-requirement-test.md.",
         "rejected": [
           "즉시 클라우드 배포",
           "ngrok(계정·authtoken 필요)",
-          "bore 등 평문 http 릴레이(실측상 카카오 TLS 강제로 연동 불가)"
+          "bore 등 평문 http 릴레이(실측상 카카오 TLS 강제로 연동 불가)",
+          "self-signed/사설 CA HTTPS 인증서(실측상 카카오가 거부, 공인 CA 필요)"
         ],
         "relatedIds": [
           "sys-kakao-platform",
@@ -788,57 +673,56 @@
       },
       {
         "id": "d10",
-        "topic": "대화 이력 저장소 (context 미동작 → 파일)",
-        "choice": "카카오 output context 왕복 대신 botUserKey별 JSON 파일 저장소를 docker 볼륨(captured-requests/history/)에 둔다",
-        "why": "실카톡 진단으로 확정: 응답에 심은 output context가 다음 요청으로 왕복되지 않음(요청 최상위 contexts가 매번 빈 배열, userRequest.contexts는 필드 없음). 반면 user.id(botUserKey)는 64자 해시로 안정적이라 저장소 키로 적합. 마운트 볼륨 파일은 호스트에서 열람·수집되고 컨테이너 재생성에도 보존되며 RAG 연동 시 전송 소스가 된다. 동일 인터페이스(load/append)로 KV·DB 전환 가능.",
+        "topic": "대화 이력 = 에이전트 관리 (서버 무저장)",
+        "choice": "서버는 대화 이력을 저장하지 않는다. 모든 질의가 에이전트를 거치므로 이력의 저장·관리는 에이전트(A2A) 책임이다. 이전의 botUserKey별 파일 저장소(history/session)는 제거.",
+        "why": "이력 소유자를 에이전트로 일원화(서버가 별도로 쌓으면 이중 관리·불일치). 배경 실측은 유효: 카카오 output context는 다음 요청으로 왕복되지 않아(요청 최상위 contexts가 매번 빈 배열) 서버가 상태를 심어 보낼 수 없다. 그 우회로였던 서버 파일 저장소가 이제 불필요해졌다. 온보딩 진행 상태만 예외적으로 quickReply messageText에 누적해 나른다(서버 무저장 유지). captured-requests/ 볼륨은 /echo 캡처 용도로만 남는다. 상세 docs/rag-history.md.",
         "rejected": [
+          "서버측 대화 이력 파일 저장소(이전 방식 — 제거)",
           "카카오 context 왕복(실측상 미동작)",
           "RDB 상시 운영"
         ],
         "relatedIds": [
-          "comp-history",
+          "cont-server",
           "cont-captured",
-          "comp-skill-route",
           "sys-rag"
         ],
         "decidedBy": "개발자"
       },
       {
         "id": "d11",
-        "topic": "RAG 검색을 A2A/RAG 콜백에 연결",
-        "choice": "A2A/콜백은 \"RAG 검색\" 발화에 연결. RAG 검색 시 누적 대화 이력을 실제 A2A 서버(Google ADK, JSON-RPC message/stream+SSE)로 전송, 5초 초과라 useCallback으로 대기응답 후 callbackUrl로 최종 POST. SSE는 서버가 끝까지 소비해 완성 텍스트 1회 전송. 오프라인은 MSW 목업(동일 프레이밍).",
-        "why": "RAG 검색의 본래 의도가 \"지금까지 대화를 RAG 서버로 보내 답변받기\"이므로 그 트리거에 직접 연결하는 것이 자연스럽다. 카카오 5초 제한 때문에 콜백이 유일한 우회로(유효 1분·1회). 콜백 미설정 시 SYNC_BUDGET_MS(3.5s) 내 동기 시도 후 폴백해 1001 타임아웃을 피한다. ⚠️ 현재 연결된 A2A 에이전트(llamon)와 이 경로는 임시 테스트/목업이며, 추후 실제 복지 RAG 백엔드가 추가될 자리다. RAG 검색이 A2A 응답을 카카오에 표출하는 흐름 확인용으로 기본값 고정.",
+        "topic": "전 질의 A2A/콜백 라우팅 (RAG 검색 트리거 폐기)",
+        "choice": "A2A/콜백을 특정 트리거('RAG 검색')가 아니라 agent 캐치올(온보딩 외 모든 발화)과 onboarding 완료 단계에 연결한다. 실제 A2A 서버로 발화/프로필을 전송(JSON-RPC message/stream 또는 rest + SSE), 5초 초과라 useCallback 대기응답 후 callbackUrl로 최종 POST. SSE는 서버가 끝까지 소비해 완성 텍스트 1회 전송. 오프라인은 MSW 목업.",
+        "why": "모든 질의가 에이전트를 거치도록 바뀌어 'RAG 검색'이라는 수동 트리거가 불필요해졌다. 사용자는 아무 발화나 하면 에이전트 답변을 받는다. 카카오 5초 제한 때문에 콜백이 유일한 우회로(유효 1분·1회). 콜백 미설정 시 SYNC_BUDGET_MS(3.5s) 내 동기 시도 후 폴백해 1001 타임아웃을 피한다. ⚠️ 현재 A2A 에이전트(llamon)와 이 경로는 임시 목업이며, 추후 실제 복지 RAG로 교체(env만 변경).",
         "rejected": [
-          "특정 welfare 키워드(의료 등)에 매핑",
+          "'RAG 검색' 수동 트리거(폐기 — 전 질의 자동 라우팅)",
           "동기 응답(5초 초과로 불가)",
           "토큰 실시간 스트리밍(카카오 미지원)"
         ],
         "relatedIds": [
           "comp-a2a",
           "comp-skill-route",
-          "comp-history",
+          "code-block-agent",
+          "code-block-onboarding",
           "sys-rag"
         ],
         "decidedBy": "개발자"
       },
       {
         "id": "d12",
-        "topic": "AI 안내서비스 연결 (에이전트 대화 모드)",
-        "choice": "\"AI 안내서비스 연결\" 발화로 세션을 agent 모드로 전환하고, 이후 탈출 키워드('종료' 등)를 제외한 모든 발화를 agent-chat 블록이 A2A로 흘려보낸다. 모드는 botUserKey별 파일 저장소(session-store)에 보관. 에이전트 평문 답변은 render-agent가 케이스별 카드/텍스트로 변환하고, 매 응답 끝에 '종료'로 대화를 끝낼 수 있음을 사용자에게 안내한다.",
-        "why": "매번 'RAG 검색'을 입력해야 에이전트에 닿던 흐름을, 한 번 연결하면 자연스러운 대화로 이어지게 하기 위함. 카카오 context 왕복이 미동작(d10)이라 모드 플래그도 이력과 같은 botUserKey 파일 저장소에 둔다. 5초 제한 때문에 agent-chat도 콜백 플로우(d11)를 재사용. 에이전트는 카드 스펙을 모르므로 서버(render-agent)가 답변 모양(JSON·링크·목록·평문)을 보고 렌더를 고른다. 종료 안내는 사용자가 모드에 갇히지 않도록 매 턴 노출.",
+        "topic": "에이전트 대화 모드 폐기 + 온보딩 프로필 전달 + 에이전트 SkillResponse",
+        "choice": "에이전트 대화 '모드'(connect 진입 / exit 종료 / agent-chat 모드-게이팅)를 폐기했다. 온보딩(카드) 외 모든 발화가 항상 agent 블록으로 흐른다. 온보딩은 카드/버블을 유지하되 완료 시 수집 프로필(지역·가구·관심)을 에이전트로 일괄 전달한다. 에이전트는 평문뿐 아니라 SkillResponse 형태로도 응답하며(형식은 추후 확정), 그전까지 render-agent가 임시로 변환한다.",
+        "why": "모든 채팅을 에이전트가 담당하게 되어 진입/종료 모드 구분 자체가 불필요해졌다(모드 상태 저장·탈출 키워드·종료 안내 전부 제거). 온보딩은 프로필 수집 UX로서 로컬 카드가 더 나아 유지하되, 결과는 에이전트가 맥락으로 쓰도록 넘긴다. 에이전트가 카드 스펙을 알게 되면(SkillResponse 직접 생성) render-agent 어댑터를 통과(passthrough)로 교체한다.",
         "rejected": [
-          "모든 발화를 무조건 A2A로 라우팅(메뉴 기능 상실)",
-          "질문마다 'RAG 검색' 재입력",
-          "종료 안내를 진입 시 1회만 노출"
+          "에이전트 대화 모드(connect/exit/agent-chat) 유지",
+          "온보딩까지 에이전트로 대체(수집 UX 손실)",
+          "온보딩 결과를 에이전트에 미전달(맥락 단절)"
         ],
         "relatedIds": [
           "comp-dispatcher",
-          "comp-session",
           "comp-render",
           "comp-a2a",
-          "code-block-connect",
-          "code-block-agent-chat",
-          "code-block-exit"
+          "code-block-agent",
+          "code-block-onboarding"
         ],
         "decidedBy": "개발자"
       }
@@ -846,7 +730,7 @@
     "openQuestions": [
       {
         "id": "q1",
-        "question": "카카오 context params 수명(lifeSpan/ttl)과 user.id(botUserKey) 세션 간 고정성이 미확정 → /echo 실측 필요",
+        "question": "user.id(botUserKey) 세션 간 고정성 미확정 → /echo 실측 필요. 서버는 이력을 저장하지 않지만, botUserKey를 에이전트로 넘길 안정적 식별자(대화 세션 연속성)로 쓸 수 있는지가 전제. (context params 왕복은 실측상 미동작으로 확정 — d10.)",
         "blockedIds": [
           "sys-kakao-skill",
           "comp-echo-route"
@@ -854,9 +738,11 @@
       },
       {
         "id": "q2",
-        "question": "세션을 넘어 유지될 영속 데이터가 필요할 경우 저장소(botUserKey 기반 KV 등) 미결",
+        "question": "에이전트의 정식 SkillResponse 응답 형식 미확정 → 확정되면 render-agent 임시 어댑터를 통과(passthrough)로 교체. 온보딩 완료 프로필의 전달 스키마도 그때 함께 확정.",
         "blockedIds": [
-          "sys-kakao-skill"
+          "comp-render",
+          "code-block-agent",
+          "code-block-onboarding"
         ]
       },
       {
@@ -873,7 +759,7 @@
       "카카오 메시지 발송 API 호출 (현재 미사용)",
       "code 레벨 분해 (이번 범위 아님)"
     ],
-    "nextStep": "에이전트 대화 모드에 멀티턴 맥락 전달(현재는 발화 1건만 A2A로) + 실제 복지 RAG 백엔드로 A2A 엔드포인트 교체 + /echo 실측으로 요청 계약·context 수명(q1) 확정",
-    "lastUpdated": "2026-09-16"
+    "nextStep": "에이전트의 정식 SkillResponse 응답 형식 확정 → render-agent 어댑터를 passthrough로 교체(q2) + 온보딩 완료 프로필 전달 스키마 확정 + 실제 복지 RAG 백엔드로 A2A 엔드포인트 교체 + /echo 실측으로 요청 계약·context 수명(q1) 확정",
+    "lastUpdated": "2026-09-18"
   }
 }

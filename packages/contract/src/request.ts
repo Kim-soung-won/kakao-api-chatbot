@@ -40,8 +40,8 @@ export interface UserRequest {
   /**
    * ⚠️ 초기 가설의 위치. 실측상 카카오는 `contexts`를 **페이로드 최상위**(`SkillPayload.contexts`)에
    * 싣는다(여기 userRequest 하위는 폴백). 단 실카톡 진단 결과 그 최상위 배열은 우리가 응답에 심은
-   * output context를 되돌려주지 않고 **매번 비어 있었다** → 대화 이력은 context가 아니라 서버 파일
-   * 저장소로 관리한다(apps/server history-store.ts).
+   * output context를 되돌려주지 않고 **매번 비어 있었다**. 대화 이력은 서버가 저장하지 않고
+   * 에이전트(A2A)가 관리하므로, 서버는 이번 발화만 에이전트로 넘긴다.
    */
   contexts?: RequestContext[];
   /** 발화가 들어온 블록 정보 등. */

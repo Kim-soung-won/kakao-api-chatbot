@@ -11,8 +11,11 @@ import {
  * A2A 에이전트의 **평문 답변(또는 구조화 JSON)** 을 케이스별로 알맞은 SkillResponse 출력
  * 컴포넌트로 변환한다. 에이전트가 카드 스펙을 모르므로, 서버가 답변 모양을 보고 렌더를 고른다.
  *
+ * ⚠️ 임시 어댑터. 에이전트의 정식 SkillResponse 응답 형식은 추후 확정 예정이며, 확정되면
+ *    이 모듈을 그 형식 그대로 통과(passthrough)시키는 방향으로 교체한다. 그전까지:
+ *
  * 판정 순서(먼저 맞는 케이스 채택):
- *   1) 구조화 JSON — 에이전트가 SkillResponse/Output/카드 오브젝트를 그대로 반환한 경우. (실연동 대비)
+ *   1) 구조화 JSON — 에이전트가 SkillResponse/Output/카드 오브젝트를 그대로 반환한 경우 → 통과.
  *   2) 링크 포함  — 마크다운 링크 [라벨](url) 또는 URL이 있으면 basicCard + webLink 버튼.
  *   3) 목록형     — 불릿/번호 줄이 2개 이상이면 listCard.
  *   4) 그 외      — simpleText(1000자 한도로 절단).
@@ -191,7 +194,7 @@ function tryListCard(raw: string): Output[] | null {
 
 /**
  * 에이전트 답변 → 출력 컴포넌트 배열. 위 케이스를 순서대로 시도하고, 모두 아니면 simpleText.
- * 반환 개수는 항상 MAX_OUTPUTS 미만으로 유지(호출부가 종료 안내 말풍선을 덧붙일 여유를 남김).
+ * 반환 개수는 카카오 제약(MAX_OUTPUTS)으로 절단한다.
  */
 export function renderAgentAnswer(raw: string): Output[] {
   const answer = (raw ?? "").trim();
@@ -200,6 +203,5 @@ export function renderAgentAnswer(raw: string): Output[] {
   const rendered =
     tryStructured(answer) ?? tryLinkCard(answer) ?? tryListCard(answer) ?? [simpleText(clampText(answer))];
 
-  // 종료 안내 말풍선 자리를 위해 카드 출력은 최대 (MAX_OUTPUTS - 1)개로 제한.
-  return rendered.slice(0, MAX_OUTPUTS - 1);
+  return rendered.slice(0, MAX_OUTPUTS);
 }

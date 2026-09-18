@@ -68,7 +68,7 @@ function ChatPane() {
 
       <div className="chat">
         {turns.length === 0 && (
-          <div className="hint">'카드' · '리스트' · '캐러셀' · '복지도우미' · '위반' 등을 입력해 데모 응답을 렌더링해보세요.<br />몇 마디 주고받은 뒤 'RAG 검색'을 입력하면 지금까지의 대화 이력이 RAG 전송 페이로드로 그려집니다.</div>
+          <div className="hint">'맞춤복지'를 입력하면 온보딩 카드 흐름(지역→가구→관심)이 시작되고,<br />그 외 자유 발화는 모두 에이전트(A2A) 응답으로 렌더링됩니다. 응답마다 제약 위반 경고·원문 JSON을 확인하세요.</div>
         )}
         {turns.map((turn, i) => (
           <div key={i} className="turn">
@@ -108,7 +108,7 @@ function ChatPane() {
           className="composer-input"
           value={input}
           onChange={(e) => setInput(e.target.value)}
-          placeholder="발화 입력 (예: 카드, 복지도우미)"
+          placeholder="발화 입력 (예: 맞춤복지, 보육료 알려줘)"
         />
         <button className="composer-send" type="submit">전송</button>
       </form>
