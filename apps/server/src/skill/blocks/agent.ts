@@ -3,7 +3,6 @@ import type { SkillBlock } from "../types.js";
 import { simpleText } from "../../builders/outputs.js";
 import { askRagAgent } from "../../a2a/rag-client.js";
 import { renderRag } from "../render-rag.js";
-import { mergeQuickReplies } from "../shared.js";
 
 /**
  * 에이전트 블록 — 온보딩을 제외한 **모든 발화를 A2A 에이전트로 전달**하는 캐치올.
@@ -22,9 +21,18 @@ import { mergeQuickReplies } from "../shared.js";
  * 맥락 조립·거주지 코드 매핑은 향후 과제.
  */
 
-/** 렌더된 출력을 후속 제안 칩 + 공통 NAV 바로가기와 함께 SkillResponse로 감싼다(최대 10개, 중복 제거). */
+/**
+ * 렌더된 출력을 SkillResponse로 감싼다. 버블(quickReplies)은 **에이전트 응답의 suggestions에서
+ * 나온 것만** 노출한다 — 서버 고정 NAV 목록을 덧붙이지 않는다. 에이전트가 제안을 안 주면 버블 없음.
+ */
 function wrapAgent(outputs: Output[], suggestionQr: QuickReply[] = []): SkillResponse {
-  return { version: "2.0", template: { outputs, quickReplies: mergeQuickReplies(suggestionQr) } };
+  return {
+    version: "2.0",
+    template: {
+      outputs,
+      ...(suggestionQr.length ? { quickReplies: suggestionQr } : {}),
+    },
+  };
 }
 
 export const agent: SkillBlock = {

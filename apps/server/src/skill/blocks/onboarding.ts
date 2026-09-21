@@ -3,7 +3,7 @@ import type { SkillBlock } from "../types.js";
 import { messageQuickReply, simpleText } from "../../builders/outputs.js";
 import { askRagAgent } from "../../a2a/rag-client.js";
 import { renderRag } from "../render-rag.js";
-import { mergeQuickReplies, NAV_QUICK_REPLIES } from "../shared.js";
+import { NAV_QUICK_REPLIES } from "../shared.js";
 
 /** 온보딩 시나리오 단계별 선택지. */
 export const REGIONS = ["화곡동", "등촌동", "가양동", "마곡동"];
@@ -138,10 +138,11 @@ export const onboarding: SkillBlock = {
         conditions: { apply_date: today() },
         sessionId: ctx.userId,
       });
+      // 버블은 에이전트 suggestions에서 나온 것만 노출(서버 고정 NAV 병합 없음).
       const { outputs, quickReplies } = renderRag(result);
       return {
         version: "2.0",
-        template: { outputs, quickReplies: mergeQuickReplies(quickReplies) },
+        template: { outputs, ...(quickReplies.length ? { quickReplies } : {}) },
       };
     },
   },
