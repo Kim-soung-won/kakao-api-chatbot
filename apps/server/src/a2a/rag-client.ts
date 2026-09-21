@@ -179,15 +179,13 @@ export async function askRagAgent(input: RagQuery | string): Promise<RagResult> 
   const headers: Record<string, string> = { "content-type": "application/json" };
   if (RAG_AUTH) headers["authorization"] = RAG_AUTH;
 
+  // 에이전트로 나가는 요청 원문(JSON-RPC body 전체)을 서버 로그에 남긴다 — 연동 디버깅용.
   console.log(
     "[rag] →request",
     JSON.stringify({
       endpoint: RAG_ENDPOINT,
       auth: RAG_AUTH ? "Bearer ***" : "(없음)",
-      query,
-      sessionId,
-      conditions: conditions ?? null,
-      options,
+      body,
     }),
   );
 
