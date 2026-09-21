@@ -1,9 +1,9 @@
 import type { SkillResponse } from "@sprint-kakao/contract";
 import type { SkillBlock } from "../types.js";
 import { messageQuickReply, simpleText } from "../../builders/outputs.js";
-import { askA2a } from "../../a2a/client.js";
-import { renderAgentAnswer } from "../render-agent.js";
-import { NAV_QUICK_REPLIES } from "../shared.js";
+import { askRagAgent } from "../../a2a/rag-client.js";
+import { renderRag } from "../render-rag.js";
+import { mergeQuickReplies, NAV_QUICK_REPLIES } from "../shared.js";
 
 /** 온보딩 시나리오 단계별 선택지. */
 export const REGIONS = ["화곡동", "등촌동", "가양동", "마곡동"];
@@ -131,11 +131,22 @@ export const onboarding: SkillBlock = {
     when: (ctx) => isComplete(ctx.utterance),
     waitingText: "입력하신 정보로 맞춤 복지를 찾고 있어요… 잠시만 기다려 주세요 🔎",
     run: async (ctx) => {
-      const answer = await askA2a({ question: profileQuery(parseProfile(ctx.utterance)) });
+      // 온보딩 프로필을 질의 텍스트로 넘긴다. 거주지/가구/관심 코드 매핑이 아직 없어(가이드 §2.2)
+      // conditions에는 조회 기준일(apply_date)만 싣는다 — 지역 서비스 반영은 코드 매핑 이후 과제.
+      const result = await askRagAgent({
+        query: profileQuery(parseProfile(ctx.utterance)),
+        conditions: { apply_date: today() },
+      });
+      const { outputs, quickReplies } = renderRag(result);
       return {
         version: "2.0",
-        template: { outputs: renderAgentAnswer(answer), quickReplies: NAV_QUICK_REPLIES },
+        template: { outputs, quickReplies: mergeQuickReplies(quickReplies) },
       };
     },
   },
 };
+
+/** 오늘 날짜 `YYYY-MM-DD`(로컬). RAG 조회 기준일용. */
+function today(): string {
+  return new Date().toISOString().slice(0, 10);
+}

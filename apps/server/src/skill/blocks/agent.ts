@@ -1,9 +1,9 @@
-import type { Output, SkillResponse } from "@sprint-kakao/contract";
+import type { Output, QuickReply, SkillResponse } from "@sprint-kakao/contract";
 import type { SkillBlock } from "../types.js";
 import { simpleText } from "../../builders/outputs.js";
-import { askA2a } from "../../a2a/client.js";
-import { renderAgentAnswer } from "../render-agent.js";
-import { NAV_QUICK_REPLIES } from "../shared.js";
+import { askRagAgent } from "../../a2a/rag-client.js";
+import { renderRag } from "../render-rag.js";
+import { mergeQuickReplies } from "../shared.js";
 
 /**
  * 에이전트 블록 — 온보딩을 제외한 **모든 발화를 A2A 에이전트로 전달**하는 캐치올.
@@ -16,14 +16,15 @@ import { NAV_QUICK_REPLIES } from "../shared.js";
  * callbackUrl 있으면 즉시 대기응답 후 백그라운드에서 A2A 호출→callbackUrl POST,
  * 없으면 예산 내 동기 시도 후 폴백(respond).
  *
- * 에이전트 답변은 renderAgentAnswer로 SkillResponse 출력으로 변환한다. 에이전트가 이미
- * 구조화된 SkillResponse/Output을 반환하면 그대로 통과(passthrough)하고, 평문이면 카드/텍스트로
- * 렌더한다. (에이전트의 정식 SkillResponse 형식은 추후 확정 예정 — 그때 renderAgentAnswer 교체.)
+ * RAG 에이전트(docs/rag-agent-직접연동-가이드v4.md) 응답은 renderRag로 SkillResponse 출력으로
+ * 변환한다 — 안내문은 리드 텍스트, sources는 네이티브 카드(itemCard), suggestions는 후속 제안 칩.
+ * 서버는 상태가 없으므로 조건(거주지 코드 등) 없이 발화만 질의로 보낸다(가이드 §2.4). 후속 발화의
+ * 맥락 조립·거주지 코드 매핑은 향후 과제.
  */
 
-/** 렌더된 출력을 공통 바로가기와 함께 SkillResponse로 감싼다. */
-function wrapAgent(outputs: Output[]): SkillResponse {
-  return { version: "2.0", template: { outputs, quickReplies: NAV_QUICK_REPLIES } };
+/** 렌더된 출력을 후속 제안 칩 + 공통 NAV 바로가기와 함께 SkillResponse로 감싼다(최대 10개, 중복 제거). */
+function wrapAgent(outputs: Output[], suggestionQr: QuickReply[] = []): SkillResponse {
+  return { version: "2.0", template: { outputs, quickReplies: mergeQuickReplies(suggestionQr) } };
 }
 
 export const agent: SkillBlock = {
@@ -42,8 +43,9 @@ export const agent: SkillBlock = {
   callback: {
     waitingText: "AI 상담원이 답변을 준비하고 있어요… 잠시만 기다려 주세요 🤖",
     run: async (ctx) => {
-      const answer = await askA2a({ question: ctx.utterance });
-      return wrapAgent(renderAgentAnswer(answer));
+      const result = await askRagAgent(ctx.utterance);
+      const { outputs, quickReplies } = renderRag(result);
+      return wrapAgent(outputs, quickReplies);
     },
   },
 };

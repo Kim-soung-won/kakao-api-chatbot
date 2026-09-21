@@ -40,3 +40,38 @@ export const A2A_DURATION_MS = Number(process.env["A2A_DURATION_MS"] ?? 30_000);
 
 /** 목업 활성화 여부. 기본 **off**(위 테스트 에이전트 사용). 오프라인 개발 시 A2A_MOCK=1. */
 export const A2A_MOCK_ENABLED = process.env["A2A_MOCK"] === "1";
+
+/* ────────────────────────────────────────────────────────────────────────────
+ * RAG 복지 안내 에이전트 (실연동) — docs/rag-agent-직접연동-가이드v4.md 계약.
+ *
+ * 위 A2A_* 는 임시 데모(llamon SSE)이고, 아래 RAG_* 가 **실제 복지 RAG 에이전트**다.
+ * 프로토콜은 A2A JSON-RPC `message/send`(단발). 요청은 text part(질의) + DataPart
+ * `rag-agent.flow-input.v3`(conditions·options), 응답은 artifact `welfare-guide` 안의
+ * TextPart(안내문) + DataPart `rag-agent.flow-output.v1`(sources·suggestions).
+ * 인증은 현재 불요(실측). 필요해지면 RAG_AUTH(Bearer)만 .env로 주입한다(커밋 금지).
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+/** RAG 에이전트 엔드포인트. 사내 A2A 게이트웨이. env로 교체 가능. */
+export const RAG_ENDPOINT =
+  process.env["RAG_ENDPOINT"] ??
+  "http://10.10.10.24:32402/admin/a2a/ax-sprint-rag-agent";
+
+/** Authorization 헤더 값. 현재는 불요(미설정). 필요 시 .env로만 주입, 커밋 금지. */
+export const RAG_AUTH = process.env["RAG_AUTH"];
+
+/** RAG 응답 대기 상한(ms). 콜백 유효(1분)보다 짧게. 실측 ~8초. */
+export const RAG_TIMEOUT_MS = Number(process.env["RAG_TIMEOUT_MS"] ?? 40_000);
+
+/** 회수 개수(options.top_k). 생략 시 검색 서버 기본값(3). */
+export const RAG_TOP_K = Number(process.env["RAG_TOP_K"] ?? 3);
+
+/**
+ * 안내문 형식(options.answer_format). 카카오 simpleText는 마크다운을 렌더하지 않으므로
+ * 기본 **plain**(인용블록·제목·굵게 제거). sources는 네이티브 카드로 별도 렌더한다.
+ */
+export const RAG_ANSWER_FORMAT = (process.env["RAG_ANSWER_FORMAT"] === "markdown"
+  ? "markdown"
+  : "plain") as "markdown" | "plain";
+
+/** RAG 오프라인 목업 사용 여부(네트워크 없이 canned 구조 응답). 기본 off. */
+export const RAG_MOCK_ENABLED = process.env["RAG_MOCK"] === "1" || A2A_MOCK_ENABLED;
