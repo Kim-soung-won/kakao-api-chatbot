@@ -51,10 +51,12 @@ export const A2A_MOCK_ENABLED = process.env["A2A_MOCK"] === "1";
  * 인증은 현재 불요(실측). 필요해지면 RAG_AUTH(Bearer)만 .env로 주입한다(커밋 금지).
  * ──────────────────────────────────────────────────────────────────────────── */
 
-/** RAG 에이전트 엔드포인트. 사내 A2A 게이트웨이. env로 교체 가능. */
+/**
+ * RAG 에이전트 엔드포인트. 기본값 = **공인 게이트웨이**(사내·AWS 모두 도달 가능, 실측).
+ * 사내망 전용 주소는 http://10.10.10.24:32402/admin/a2a/ax-sprint-rag-agent (AWS에서 라우팅 불가).
+ */
 export const RAG_ENDPOINT =
-  process.env["RAG_ENDPOINT"] ??
-  "http://10.10.10.24:32402/admin/a2a/ax-sprint-rag-agent";
+  process.env["RAG_ENDPOINT"] ?? "http://121.166.81.33:28000/welfare-agent";
 
 /** Authorization 헤더 값. 현재는 불요(미설정). 필요 시 .env로만 주입, 커밋 금지. */
 export const RAG_AUTH = process.env["RAG_AUTH"];
