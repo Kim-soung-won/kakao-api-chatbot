@@ -108,6 +108,15 @@ function pruneConditions(c: RagConditions | undefined): RagConditions | undefine
   return Object.keys(out).length ? out : undefined;
 }
 
+/**
+ * message.metadata의 세션 외 필드 — 에이전트 측 요구 형식. sessionId만 실값(botUserKey)이고
+ * ⚠️ userId·agentId·agentName은 **임시 placeholder**다(확정 값을 받으면 교체, env로도 덮어쓰기 가능).
+ */
+const RAG_META_USER_ID = process.env["RAG_META_USER_ID"] ?? "admin";
+const RAG_META_AGENT_ID =
+  process.env["RAG_META_AGENT_ID"] ?? "016316b2-e357-4eea-9f9d-ce6a50961f24";
+const RAG_META_AGENT_NAME = process.env["RAG_META_AGENT_NAME"] ?? "금융 마켓 인사이트";
+
 export async function askRagAgent(input: RagQuery | string): Promise<RagResult> {
   const q = toQuery(input);
   const query = (q.query ?? "").trim();
@@ -134,6 +143,9 @@ export async function askRagAgent(input: RagQuery | string): Promise<RagResult> 
     answer_format: q.options?.answer_format ?? RAG_ANSWER_FORMAT,
   };
 
+  // 세션 식별: 카카오 botUserKey를 sessionId로. 같은 채팅방 턴을 에이전트가 묶을 수 있게.
+  const sessionId = q.sessionId?.trim() || "anonymous";
+
   const body = {
     jsonrpc: "2.0",
     id: 1,
@@ -143,6 +155,12 @@ export async function askRagAgent(input: RagQuery | string): Promise<RagResult> 
         role: "user",
         kind: "message",
         messageId: randomUUID(),
+        metadata: {
+          userId: RAG_META_USER_ID,
+          sessionId,
+          agentId: RAG_META_AGENT_ID,
+          agentName: RAG_META_AGENT_NAME,
+        },
         parts: [
           { kind: "text", text: query },
           {
@@ -167,6 +185,7 @@ export async function askRagAgent(input: RagQuery | string): Promise<RagResult> 
       endpoint: RAG_ENDPOINT,
       auth: RAG_AUTH ? "Bearer ***" : "(없음)",
       query,
+      sessionId,
       conditions: conditions ?? null,
       options,
     }),

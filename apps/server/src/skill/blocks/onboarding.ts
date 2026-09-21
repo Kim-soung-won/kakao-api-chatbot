@@ -136,6 +136,7 @@ export const onboarding: SkillBlock = {
       const result = await askRagAgent({
         query: profileQuery(parseProfile(ctx.utterance)),
         conditions: { apply_date: today() },
+        sessionId: ctx.userId,
       });
       const { outputs, quickReplies } = renderRag(result);
       return {

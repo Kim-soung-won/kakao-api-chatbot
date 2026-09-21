@@ -43,7 +43,8 @@ export const agent: SkillBlock = {
   callback: {
     waitingText: "AI 상담원이 답변을 준비하고 있어요… 잠시만 기다려 주세요 🤖",
     run: async (ctx) => {
-      const result = await askRagAgent(ctx.utterance);
+      // sessionId = botUserKey — 같은 채팅방의 턴을 에이전트가 세션으로 묶는다.
+      const result = await askRagAgent({ query: ctx.utterance, sessionId: ctx.userId });
       const { outputs, quickReplies } = renderRag(result);
       return wrapAgent(outputs, quickReplies);
     },
