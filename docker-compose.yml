@@ -3,9 +3,11 @@
 # 카카오 키는 apps/server/.env 에서 주입(없으면 생략). 실제 배포 시 호스트 env로 대체.
 services:
   server:
+    platform: linux/amd64
     build:
       context: .
       dockerfile: apps/server/Dockerfile
+      platforms: [linux/amd64]
     image: sprint-kakao-server
     container_name: sprint-kakao-server
     ports:
