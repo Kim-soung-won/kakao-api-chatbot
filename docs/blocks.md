@@ -33,8 +33,8 @@
 
 - **언제:** 봇이 **되묻는(파라미터 물어보는) 중**에 사용자가 그 흐름을 **초기화·이탈**하려 할 때.
 - **용도:** "처음으로"·"취소"·"그만" 같은 탈출 명령어(오픈빌더 개념).
-- ⚠️ 이 프로젝트 서버에는 **탈출 블록이 없다.** 에이전트 대화 "모드"(진입/종료)를 제거했기
-  때문 — 온보딩 외 모든 발화가 항상 에이전트로 가므로 갇힐 모드 자체가 없다.
+- 이 프로젝트 서버에는 **활성 탈출 블록이 없다.** 세션 연결/종료(`connect`·`exit`)는 저장소 구축 부담으로
+  비활성화했고, 모든 발화가 항상 에이전트로 가므로 갇힐 흐름 자체가 없다.
 
 ## 한눈에
 
@@ -42,7 +42,7 @@
 | --- | --- | --- |
 | 웰컴 | 첫 진입(1회) | 인사·온보딩 (→ 채널 친구추가 메시지로 대체) |
 | 폴백 | 발화 미매칭 | 기본 응답 (자유 질문은 에이전트가 처리) |
-| 탈출 | 되묻기 중 이탈/초기화 | 흐름 리셋 (이 서버에선 미사용) |
+| 탈출 | 되묻기 중 이탈/초기화 | 흐름 리셋 (이 서버에선 미사용 — exit 비활성) |
 
 ## 이 프로젝트 서버의 대응 구조
 
@@ -54,24 +54,29 @@ apps/server/src/
   skill/
     types.ts              SkillContext, SkillBlock(계약)
     index.ts              parseSkillContext · handleSkill(디스패처)
-    shared.ts             공통 quickReplies · wrap
+    shared.ts             공통 quickReplies · wrap · wrapSession(종료 안내·버블)
+    session-store.ts      botUserKey별 세션 모드 파일 저장소(captured-requests/session/)
     render-agent.ts       에이전트 답변 → SkillResponse 변환(임시 어댑터)
     blocks/
       index.ts            blocks[] (매칭 순서) + fallback
-      onboarding.ts       온보딩 카드 흐름(지역→가구→관심). 완료 시 프로필을 에이전트로 전달(콜백)
-      agent.ts            캐치올 — 온보딩 외 모든 발화를 A2A 에이전트로 전달(콜백)
-      fallback.ts         최종 안전망(주로 빈 발화)
+      fixed.ts            고정 답변 — "AI 복지 채널 소개"·"상담사 연결 방법 안내"(에이전트 미호출, 동기)
+      agent.ts            캐치올 — 그 외 모든 발화를 A2A 에이전트로 전달(콜백)
+      fallback.ts         최종 안전망(빈 발화)
+      connect.ts          (비활성) "AI 복지 연결" → 세션 연결
+      exit.ts             (비활성) "종료"·"대화 종료"·"연결 해제" → 세션 해제
+      onboarding.ts       (비활성) 온보딩 카드 흐름(지역→연령대→가구→관심(복수))
   a2a/                    A2A 클라이언트·설정·목업(client·config·mock)
   builders/outputs.ts     출력 컴포넌트 프리미티브 빌더
 ```
 
-> **제거된 블록:** `welcome`(→ 채널 친구추가 메시지), `connect`/`exit`/`agent-chat`(에이전트 대화
-> 모드 개념 폐기), `rag-search`(이력을 에이전트가 관리 → 별도 트리거 불필요), `welfare`/`help`
+> **제거된 블록:** `welcome`(→ 채널 친구추가 메시지), `agent-chat`(→ `agent`가 세션 게이트로 대체),
+> `rag-search`(이력을 에이전트가 관리 → 별도 트리거 불필요), `welfare`/`help`
 > (정적 카드 대신 에이전트가 응답).
 
-- **매칭 순서**(`blocks/index.ts`): `onboarding → agent`, 마지막 안전망이 `fallback`.
-  "맞춤복지"·온보딩 누적 발화만 `onboarding`이 잡고, 나머지 모든 발화는 `agent`로 간다.
-- **콜백 처리**: `agent`(항상)와 `onboarding`(완료 단계만)은 5초를 넘길 수 있어 카카오
+- **매칭 순서**(`blocks/index.ts`): `fixed → agent`, 마지막 안전망이 `fallback`(빈 발화).
+  고정 답변 두 발화(공백 무시 완전 일치)를 제외한 **모든 챗봇 질의는 에이전트로 간다.** 세션 연결/종료(connect·exit·session-store)와 온보딩은
+  **비활성(미등록)** — 저장소를 추가로 구축·운영하는 부담 때문에 서버를 무상태로 둔다. 코드는 재활성화용으로 남김.
+- **콜백 처리**: `agent`는 5초를 넘길 수 있어 카카오
   콜백(useCallback)으로 최종 응답을 보낸다 → [a2a-callback.md](./a2a-callback.md).
 
 ## 오픈빌더 실제 연결 가이드

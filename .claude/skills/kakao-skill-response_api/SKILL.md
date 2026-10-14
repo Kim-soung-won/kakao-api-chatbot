@@ -103,11 +103,11 @@ metadata:
 
 - **Request Body**: `SkillPayload` (아래 "요청 계약" 참조). ⚠️ unconfirmed — 가설.
 - **동작**: `userRequest.utterance`(사용자 발화)를 읽어 블록으로 디스패치한다 —
-  **onboarding**(지역→가구→관심 카드 흐름, 로컬) 또는 **agent**(그 외 모든 발화를 A2A 에이전트로
-  전달). 온보딩 완료 시 수집 프로필을 에이전트로 넘긴다. 5초 초과(에이전트) 처리는 콜백 플로우로
+  **fixed**("AI 복지 채널 소개"·"상담사 연결 방법 안내" 고정 답변) → **agent**(그 외 모든 발화를 A2A 에이전트로 전달). 빈 발화만 fallback. connect·exit(세션)·onboarding 블록은
+  **비활성(미등록)** 이다. 5초 초과(에이전트) 처리는 콜백 플로우로
   반환한다. 요청 타입이 가설이므로 **옵셔널 체이닝으로 방어적 파싱**한다.
-  - **서버는 대화 이력·세션 모드를 저장하지 않는다** — 멀티턴 맥락은 에이전트가 관리한다.
-    온보딩 진행 상태만 quickReply `messageText`에 누적해 나른다. (배경: [[kakao-skill-response_domain]]의
+  - **서버는 상태를 저장하지 않는다** — 저장소 추가 구축·운영 부담 때문에 세션 상태 관리를 껐다.
+    대화 이력·멀티턴 맥락은 에이전트가 관리한다(sessionId = botUserKey). (배경: [[kakao-skill-response_domain]]의
     응답 측 `context`가 요청으로 왕복되지 않음 — 실측.)
 - **Response**: `SkillResponse`(또는 콜백 시 `useCallback` ack) → **계약은 [[kakao-skill-response_domain]] 참고**
   (이 스킬에서 응답 구조를 재정의하지 않는다). 에이전트 답변은 임시로 `render-agent`가 SkillResponse로
@@ -184,7 +184,7 @@ interface SkillAction {
 
 ## 검증 대상 (/echo 캡처)
 
-> ⚠️ 저장소 설계 근거로서의 의미는 **해소됨**: 서버는 이제 상태를 저장하지 않고 대화 이력은
+> ⚠️ 저장소 설계 근거로서의 의미는 **해소됨**: 서버는 상태를 저장하지 않고(저장소 구축 부담) 대화 이력은
 > 에이전트가 관리한다(아래 "핵심 의사 결정"). 아래는 요청 계약 확정을 위해 여전히 실측할 항목.
 
 1. **`userRequest.user.id`(botUserKey)가 세션 간 고정인가?**
@@ -224,9 +224,10 @@ interface SkillAction {
 ### 서버 (`apps/server`, Fastify · ESM)
 
 - **`apps/server/src/index.ts`** — Fastify 인스턴스 부트스트랩. `GET /health`(`{ status: "ok" }`)를 직접 정의하고, `skillRoutes`·`echoRoutes`를 register한다. 포트는 `process.env.PORT ?? 3000`.
-- **`apps/server/src/routes/skill.ts`** — `POST /skill`. `parseSkillContext(request.body)`로 **방어적 파싱**(발화·botUserKey·callbackUrl) 후 `selectBlock`으로 디스패치. 콜백 블록(agent 항상·onboarding 완료)은 `handleCallbackBlock`(useCallback ack + 백그라운드 run → callbackUrl POST, 콜백 미설정이면 `SYNC_BUDGET_MS` 내 동기 시도 후 폴백).
-- **`apps/server/src/skill/index.ts`** — 디스패처. `parseSkillContext`·`selectBlock`·`handleSkill`. 서버는 이력·세션을 저장하지 않는다.
-- **`apps/server/src/skill/blocks/`** — `index.ts`(레지스트리: `[onboarding, agent]` + `fallback`), `onboarding.ts`(카드 흐름 + 완료 시 프로필 A2A), `agent.ts`(캐치올 → A2A), `fallback.ts`(빈 발화 안전망).
+- **`apps/server/src/routes/skill.ts`** — `POST /skill`. `parseSkillContext(request.body)`로 **방어적 파싱**(발화·botUserKey·callbackUrl)  후 `selectBlock`으로 디스패치(세션 모드는 로드하지 않음). 콜백 블록(agent)은 `handleCallbackBlock`(useCallback ack + 백그라운드 run → callbackUrl POST, 콜백 미설정이면 `SYNC_BUDGET_MS` 내 동기 시도 후 폴백).
+- **`apps/server/src/skill/index.ts`** — 디스패처. `parseSkillContext`·`applyModeEffect`(현재 무동작)·`selectBlock`·`handleSkill`. 이력·세션을 저장하지 않는다.
+- **`apps/server/src/skill/session-store.ts`** — (비활성) botUserKey별 세션 모드 파일 저장소. 재활성화용으로만 남김.
+- **`apps/server/src/skill/blocks/`** — `index.ts`(레지스트리: `[fixed, agent]` + `fallback`), `fixed.ts`(고정 답변 표), `agent.ts`(그 외 모든 발화 → A2A), `fallback.ts`(빈 발화). 비활성(미등록): `connect.ts`·`exit.ts`(세션), `onboarding.ts`(카드 흐름).
 - **`apps/server/src/skill/render-agent.ts`** — 에이전트 답변 → `SkillResponse` 변환(임시 어댑터, 형식 확정 시 passthrough로 교체).
 - **`apps/server/src/a2a/`** — `client.ts`(askA2a: SSE 소비)·`config.ts`·`mock.ts`(MSW). 5초 초과라 콜백으로 최종 응답.
 - **`apps/server/src/routes/echo.ts`** — `POST /echo`. 요청을 **원문 그대로**(`headers` + `body`) `captured-requests/echo-<ISO>.json`에 저장하고 `user.id`·`contexts` 유무를 로깅. 요청 계약 실측 확정용.
@@ -245,11 +246,9 @@ interface SkillAction {
 
 ## 핵심 의사 결정 (RAG 프로젝트 관점)
 
-- **서버는 상태를 저장하지 않는다(stateless).** 대화 이력은 **에이전트(A2A)가 관리**한다 —
-  모든 질의가 에이전트를 거치므로 이력 소유자를 에이전트로 일원화했다. DB·KV·파일 저장소 모두 없음
-  (이전의 botUserKey별 파일 저장소는 제거). `captured-requests/`는 `/echo` 캡처 용도로만 남는다.
-- 이렇게 된 배경엔 카카오 `context` 미왕복(실측)이 있지만, 그 우회로였던 서버 저장소 자체가
-  이제 불필요하다. 서버는 이번 발화(또는 온보딩 완료 프로필)만 에이전트로 넘긴다.
+- **서버는 상태를 저장하지 않는다(stateless).** 세션 연결/종료와 온보딩을 잠시 되살렸다가, **저장소를
+  추가로 구축·운영하는 부담** 때문에 비활성화했다(2026-10-14). 모든 챗봇 질의는 에이전트로 가고, 대화 이력은
+  **에이전트(A2A)가 관리**한다 — 서버는 이번 발화만 sessionId(botUserKey)와 함께 넘긴다.
 - 에이전트의 정식 `SkillResponse` 응답 형식은 **추후 확정 예정** — 확정 시 `render-agent`
   임시 어댑터를 통과(passthrough)로 교체한다.
 - `/echo`를 먼저 붙여 실제 요청을 캡처 → `SkillPayload`를 HYPOTHESIS에서 확정으로 승격 →

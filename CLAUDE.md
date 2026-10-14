@@ -14,9 +14,9 @@ packages/
     src/request.ts     SkillPayload (⚠️ HYPOTHESIS — /echo 실측으로 확정 대상)
 apps/
   server/            스킬 서버 (Fastify, ESM)
-    src/routes/skill.ts   POST /skill — 발화 → 블록 디스패치(onboarding·agent) → SkillResponse
+    src/routes/skill.ts   POST /skill — 발화 → fixed(고정 답변) | agent(그 외 모든 질의를 에이전트로) → SkillResponse
     src/routes/echo.ts    POST /echo  — 실제 카카오 요청 원문 캡처 (captured-requests/)
-    src/skill/            디스패처 + 블록(onboarding·agent·fallback) + render-agent(임시 어댑터)
+    src/skill/            디스패처 + 블록(fixed·agent·fallback, 비활성: connect·exit·onboarding) + render-rag
     src/a2a/              A2A 에이전트 클라이언트·설정·목업 (모든 질의를 에이전트로)
     src/builders/         contract 타입 기반 응답 컴포넌트 빌더
     .env                  개인 카카오 key 자리 (gitignore, .env.example 참고)
@@ -35,10 +35,11 @@ apps/
    `request.ts`는 HYPOTHESIS로 둔다. `/skill`은 요청을 방어적으로(옵셔널 체이닝) 파싱.
    `/echo`로 실제 요청을 캡처해 user.id(botUserKey) 안정성 등을 실측한다. (context.params는
    실측 결과 **미왕복** — 서버 상태 저장을 포기한 근거.)
-3. **서버는 상태를 저장하지 않는다.** 모든 질의가 에이전트(A2A)를 거치고, **대화 이력은
-   에이전트가 관리**한다. 온보딩(카드 흐름)만 로컬이고 그 외 모든 발화는 agent 블록이 에이전트로
-   넘긴다. 온보딩 완료 시 수집 프로필을 에이전트로 전달. 에이전트 대화 "모드"(진입/종료)는 없다.
-   에이전트의 정식 SkillResponse 응답 형식은 추후 확정 예정(그전까지 render-agent가 임시 변환).
+3. **서버는 상태를 저장하지 않는다.** 저장소를 추가로 구축·운영하는 부담 때문에 세션 상태 관리와
+   온보딩을 **비활성화**했다. **고정 답변 두 개("AI 복지 채널 소개"·"상담사 연결 방법 안내", fixed 블록)를 제외한 모든 챗봇 질의는 agent 블록이 에이전트(A2A)로 보내고**, 대화 이력·맥락은
+   에이전트가 관리한다(sessionId = botUserKey). connect·exit·onboarding 블록과 session-store는
+   재활성화를 위해 코드로만 남아 있다(미등록). 에이전트의 정식 SkillResponse 응답 형식은 추후 확정
+   예정(그전까지 render-rag가 변환).
 
 ## 구현 상태
 
@@ -61,7 +62,7 @@ pnpm --filter @sprint-kakao/playground dev   # :5173  (/skill·/echo → :3000 �
 ```
 
 playground는 발화를 서버 `/skill`로 보내 응답을 렌더하고, 응답마다 제약 위반 경고와 원문
-JSON(토글)을 확인한다. `맞춤복지` → 온보딩 카드 흐름, 그 외 발화 → 에이전트(A2A) 응답.
+JSON(토글)을 확인한다. 모든 발화 → 에이전트(A2A) 응답.
 (A2A는 로컬에서 `A2A_MOCK=1` 목업으로 검증.)
 
 ## 도메인 지식 (스킬 참조)

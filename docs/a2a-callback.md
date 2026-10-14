@@ -82,7 +82,7 @@ curl -s 'localhost:3000/callback-sink?id=t1'   # payload에 최종 에이전트 
 
 # 온보딩 완료 콜백 경로(프로필 3조각 누적 발화)
 curl -s localhost:3000/skill -H 'content-type: application/json' -d '{
-  "userRequest":{"utterance":"화곡동 / 다문화가정 / 교육·진학","user":{"id":"u1"},
+  "userRequest":{"utterance":"맞춤복지 / 강서구 / 30대 / 단독가구 / 주거, 보육 / 완료","user":{"id":"u1"},
   "callbackUrl":"http://localhost:3000/callback-sink?id=t2"},"bot":{},"action":{}}'
 sleep 2
 curl -s 'localhost:3000/callback-sink?id=t2'   # payload에 프로필 맞춤 안내
