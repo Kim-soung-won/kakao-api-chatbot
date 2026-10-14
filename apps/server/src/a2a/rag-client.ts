@@ -109,7 +109,7 @@ function pruneConditions(c: RagConditions | undefined): RagConditions | undefine
 }
 
 /**
- * message.metadata의 세션 외 필드 — 에이전트 측 요구 형식. sessionId만 실값(botUserKey)이고
+ * params.metadata의 세션 외 필드 — 에이전트 측 요구 형식. sessionId만 실값(botUserKey)이고
  * ⚠️ userId·agentId·agentName은 **임시 placeholder**다(확정 값을 받으면 교체, env로도 덮어쓰기 가능).
  */
 const RAG_META_USER_ID = process.env["RAG_META_USER_ID"] ?? "admin";
@@ -131,12 +131,6 @@ export async function askRagAgent(input: RagQuery | string): Promise<RagResult> 
     };
   }
 
-  // 오프라인/로컬: canned 구조 응답으로 대체(네트워크 없음).
-  if (RAG_MOCK_ENABLED) {
-    console.log("[rag] mock enabled — canned 응답 반환");
-    return ragMockResult(query);
-  }
-
   const conditions = pruneConditions(q.conditions);
   const options: RagOptions = {
     top_k: q.options?.top_k ?? RAG_TOP_K,
@@ -144,6 +138,7 @@ export async function askRagAgent(input: RagQuery | string): Promise<RagResult> 
   };
 
   // 세션 식별: 카카오 botUserKey를 sessionId로. 같은 채팅방 턴을 에이전트가 묶을 수 있게.
+  // 채널 요청 형식대로 같은 값을 message.contextId와 params.metadata.sessionId 두 곳에 싣는다.
   const sessionId = q.sessionId?.trim() || "anonymous";
 
   const body = {
@@ -155,12 +150,7 @@ export async function askRagAgent(input: RagQuery | string): Promise<RagResult> 
         role: "user",
         kind: "message",
         messageId: randomUUID(),
-        metadata: {
-          userId: RAG_META_USER_ID,
-          sessionId,
-          agentId: RAG_META_AGENT_ID,
-          agentName: RAG_META_AGENT_NAME,
-        },
+        contextId: sessionId,
         parts: [
           { kind: "text", text: query },
           {
@@ -173,6 +163,12 @@ export async function askRagAgent(input: RagQuery | string): Promise<RagResult> 
           },
         ],
       },
+      metadata: {
+        userId: RAG_META_USER_ID,
+        sessionId,
+        agentId: RAG_META_AGENT_ID,
+        agentName: RAG_META_AGENT_NAME,
+      },
     },
   };
 
@@ -180,14 +176,22 @@ export async function askRagAgent(input: RagQuery | string): Promise<RagResult> 
   if (RAG_AUTH) headers["authorization"] = RAG_AUTH;
 
   // 에이전트로 나가는 요청 원문(JSON-RPC body 전체)을 서버 로그에 남긴다 — 연동 디버깅용.
+  // mock이어도 실제로 보냈을 body를 확인할 수 있게 분기 전에 찍는다.
   console.log(
     "[rag] →request",
     JSON.stringify({
       endpoint: RAG_ENDPOINT,
       auth: RAG_AUTH ? "Bearer ***" : "(없음)",
+      mock: RAG_MOCK_ENABLED,
       body,
     }),
   );
+
+  // 오프라인/로컬: canned 구조 응답으로 대체(네트워크 없음).
+  if (RAG_MOCK_ENABLED) {
+    console.log("[rag] mock enabled — canned 응답 반환");
+    return ragMockResult(query);
+  }
 
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), RAG_TIMEOUT_MS);

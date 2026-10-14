@@ -39,7 +39,7 @@ export interface RagQuery {
   conditions?: RagConditions;
   options?: RagOptions;
   /**
-   * message.metadata.sessionId — 카카오 botUserKey(userRequest.user.id)를 그대로 싣는다.
+   * message.contextId · params.metadata.sessionId — 카카오 botUserKey(userRequest.user.id)를 그대로 싣는다.
    * 같은 채팅방(사용자)의 턴을 에이전트가 하나의 세션으로 묶는 용도. 없으면 "anonymous".
    */
   sessionId?: string;
