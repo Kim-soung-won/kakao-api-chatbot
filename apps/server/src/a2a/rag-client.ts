@@ -109,13 +109,14 @@ function pruneConditions(c: RagConditions | undefined): RagConditions | undefine
 }
 
 /**
- * params.metadata의 세션 외 필드 — 에이전트 측 요구 형식. sessionId만 실값(botUserKey)이고
- * ⚠️ userId·agentId·agentName은 **임시 placeholder**다(확정 값을 받으면 교체, env로도 덮어쓰기 가능).
+ * params.metadata의 세션 외 필드 — 채널 요청 형식(userId·sessionId·chatbotId·chatbotName).
+ * sessionId만 실값(botUserKey). chatbotId·chatbotName은 채널 요청 예시 값이 기본이고,
+ * userId는 "kakao"(카카오 채널 고정). 셋 다 env로 덮어쓰기 가능.
  */
-const RAG_META_USER_ID = process.env["RAG_META_USER_ID"] ?? "admin";
-const RAG_META_AGENT_ID =
-  process.env["RAG_META_AGENT_ID"] ?? "016316b2-e357-4eea-9f9d-ce6a50961f24";
-const RAG_META_AGENT_NAME = process.env["RAG_META_AGENT_NAME"] ?? "금융 마켓 인사이트";
+const RAG_META_USER_ID = process.env["RAG_META_USER_ID"] ?? "kakao";
+const RAG_META_CHATBOT_ID =
+  process.env["RAG_META_CHATBOT_ID"] ?? "ax-sprint-agent-orchestrator";
+const RAG_META_CHATBOT_NAME = process.env["RAG_META_CHATBOT_NAME"] ?? "AI 복지안내서비스";
 
 export async function askRagAgent(input: RagQuery | string): Promise<RagResult> {
   const q = toQuery(input);
@@ -166,8 +167,8 @@ export async function askRagAgent(input: RagQuery | string): Promise<RagResult> 
       metadata: {
         userId: RAG_META_USER_ID,
         sessionId,
-        agentId: RAG_META_AGENT_ID,
-        agentName: RAG_META_AGENT_NAME,
+        chatbotId: RAG_META_CHATBOT_ID,
+        chatbotName: RAG_META_CHATBOT_NAME,
       },
     },
   };
