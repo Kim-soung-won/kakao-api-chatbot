@@ -102,16 +102,18 @@ function sourceOutputs(sources: RagSource[]): Output[] {
   ];
 }
 
-/** suggestions → quickReplies. detail=이름 재질의(폴백), other_category=온보딩 재진입. */
+/**
+ * suggestions → quickReplies. detail=이름 재질의(폴백).
+ * other_category는 그리지 않는다 — 누를 때 동작이 미정(§3.3)이고 분야 선택 UI(온보딩)가 비활성이라
+ * 되돌아갈 곳이 없다. 가이드도 칩을 안 그리는 선택을 허용한다.
+ */
 function suggestionQuickReplies(suggestions: RagSuggestion[]): QuickReply[] {
   const out: QuickReply[] = [];
   for (const s of suggestions) {
     if (s.type === "detail" && s.service_name) {
       out.push(messageQuickReply(clamp(`${s.service_name} 자세히 보기`, 14), s.service_name));
-    } else if (s.type === "other_category") {
-      out.push(messageQuickReply("다른 분야 보기", "맞춤복지"));
     }
-    // 모르는 type은 무시(§3.3).
+    // other_category·모르는 type은 무시(§3.3).
   }
   return out;
 }

@@ -7,6 +7,7 @@ import {
   RAG_TIMEOUT_MS,
   RAG_TOP_K,
 } from "./config.js";
+import { plainTextFields } from "./plain-text.js";
 import { ragMockResult } from "./rag-mock.js";
 import type {
   RagConditions,
@@ -49,8 +50,13 @@ function findFlowOutput(parts: unknown): Record<string, unknown> | undefined {
     const data = (p as { data?: unknown }).data;
     if (data && typeof data === "object") {
       const schema = (data as { schema?: unknown }).schema;
-      // 스키마 이름은 방어적으로: flow-output 계열이면 채택(버전이 늘 수 있음).
-      if (typeof schema === "string" && schema.startsWith("rag-agent.flow-output")) {
+      // 스키마 이름은 방어적으로: 직접 연동(flow-output)·오케스트레이터 경유(channel-output) 계열이면
+      // 채택(버전이 늘 수 있음). 모르는 키는 아래 normalize가 무시한다.
+      if (
+        typeof schema === "string" &&
+        (schema.startsWith("rag-agent.flow-output") ||
+          schema.startsWith("welfare-orchestrator.channel-output"))
+      ) {
         return data as Record<string, unknown>;
       }
     }
@@ -68,7 +74,8 @@ function normalizeSources(v: unknown): RagSource[] {
     const service_id = typeof o["service_id"] === "string" ? o["service_id"] : "";
     const service_name = typeof o["service_name"] === "string" ? o["service_name"] : "";
     if (!service_id && !service_name) continue;
-    out.push({ ...(o as unknown as RagSource), service_id, service_name });
+    // 원장 HTML 조각(<br>·엔티티·잘린 태그)을 평문으로 — 카카오 출력은 HTML을 렌더하지 않는다.
+    out.push(plainTextFields({ ...(o as unknown as RagSource), service_id, service_name }));
   }
   return out;
 }
@@ -242,9 +249,14 @@ export async function askRagAgent(input: RagQuery | string): Promise<RagResult> 
     const state = result?.status?.state;
     const artifacts = Array.isArray(result?.artifacts) ? result!.artifacts : [];
     // part는 위치가 아니라 name/kind/schema로 찾는다(§3.1).
-    const guide = artifacts.find(
-      (a) => a && typeof a === "object" && (a as { name?: unknown }).name === "welfare-guide",
-    ) as { parts?: unknown } | undefined;
+    // 직접 연동은 `welfare-guide`, 오케스트레이터 경유는 `structured-response`.
+    const byName = (name: string) =>
+      artifacts.find(
+        (a) => a && typeof a === "object" && (a as { name?: unknown }).name === name,
+      );
+    const guide = (byName("welfare-guide") ?? byName("structured-response")) as
+      | { parts?: unknown }
+      | undefined;
 
     const guideText = partsText(guide?.parts).trim();
     const flowOut = findFlowOutput(guide?.parts);
@@ -255,6 +267,7 @@ export async function askRagAgent(input: RagQuery | string): Promise<RagResult> 
       "[rag] ←final",
       JSON.stringify({
         state: state ?? null,
+        artifacts: artifacts.map((a) => (a as { name?: unknown } | null)?.name ?? null),
         guideLen: guideText.length,
         sources: sources.length,
         suggestions: suggestions.length,
