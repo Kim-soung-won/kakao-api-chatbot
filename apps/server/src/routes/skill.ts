@@ -1,6 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import type { SkillCallbackAck, SkillResponse } from "@sprint-kakao/contract";
-import { parseSkillContext, selectBlock } from "../skill/index.js";
+import { applyModeEffect, parseSkillContext, selectBlock } from "../skill/index.js";
 import type { SkillBlock, SkillContext } from "../skill/index.js";
 import { skillPayloadSchema, skillResponseSchema } from "../schemas.js";
 
@@ -10,7 +10,7 @@ const SYNC_BUDGET_MS = Number(process.env["SYNC_BUDGET_MS"] ?? 3500);
 /**
  * POST /skill
  * 카카오 스킬 서버 본 엔드포인트.
- * - onboarding 카드 단계: 동기로 SkillResponse 반환.
+ * - 모든 발화를 agent 블록이 에이전트로 전달한다(세션·온보딩 비활성, 서버 무상태).
  * - 콜백 블록(agent·onboarding 완료 등 5초 초과): callbackUrl 있으면 즉시 useCallback 대기응답 후
  *   백그라운드에서 최종 응답을 callbackUrl로 POST. 없으면 동기 await(로컬 데모).
  */
@@ -22,7 +22,7 @@ export async function skillRoutes(app: FastifyInstance): Promise<void> {
         tags: ["skill"],
         summary: "카카오 스킬 웹훅 — 발화 처리 후 SkillResponse 반환",
         description:
-          "카카오 오픈빌더가 등록된 스킬 URL로 POST한다. 온보딩 외 모든 발화는 에이전트로 디스패치. 5초 초과 처리(A2A)는 콜백 플로우로 반환. 요청 타입은 가설이라 방어적으로 파싱한다.",
+          "카카오 오픈빌더가 등록된 스킬 URL로 POST한다. 모든 발화를 에이전트로 디스패치. 5초 초과 처리(A2A)는 콜백 플로우로 반환. 요청 타입은 가설이라 방어적으로 파싱한다.",
         body: skillPayloadSchema,
         response: { 200: skillResponseSchema },
       },
@@ -32,12 +32,15 @@ export async function skillRoutes(app: FastifyInstance): Promise<void> {
       console.log("[/skill] headers:", JSON.stringify(request.headers, null, 2));
       console.log("[/skill] body:", JSON.stringify(request.body, null, 2));
 
-      const ctx = parseSkillContext(request.body);
+      const ctx = await parseSkillContext(request.body);
       const block = selectBlock(ctx);
       // 콜백 수신 여부를 명확히 로깅(콜백 미설정이면 5초 초과 처리는 폴백만 가능).
       console.log(
         `[/skill] utterance="${ctx.utterance}" block=${block.name} callbackUrl=${ctx.callbackUrl ? "있음(콜백 활성)" : "없음(콜백 미설정→폴백)"}`,
       );
+
+      // 블록이 선언한 세션 모드 전환(연결/해제)을 응답 생성 전에 반영한다. (현재 등록 블록엔 없음)
+      await applyModeEffect(ctx, block);
 
       if (block.callback && (block.callback.when?.(ctx) ?? true)) {
         return handleCallbackBlock(app, block, ctx);
@@ -45,7 +48,7 @@ export async function skillRoutes(app: FastifyInstance): Promise<void> {
 
       const response = block.respond(ctx);
       request.log.info(
-        { utterance: ctx.utterance, userId: ctx.userId, block: block.name },
+        { utterance: ctx.utterance, userId: ctx.userId, mode: ctx.mode, block: block.name },
         "skill dispatched",
       );
       return response;

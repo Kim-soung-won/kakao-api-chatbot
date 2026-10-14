@@ -68,7 +68,7 @@ function ChatPane() {
 
       <div className="chat">
         {turns.length === 0 && (
-          <div className="hint">'맞춤복지'를 입력하면 온보딩 카드 흐름(지역→가구→관심)이 시작되고,<br />그 외 자유 발화는 모두 에이전트(A2A) 응답으로 렌더링됩니다. 응답마다 제약 위반 경고·원문 JSON을 확인하세요.</div>
+          <div className="hint">모든 발화는 에이전트(A2A) 응답으로 렌더링됩니다. 응답마다 제약 위반 경고·원문 JSON을 확인하세요.</div>
         )}
         {turns.map((turn, i) => (
           <div key={i} className="turn">

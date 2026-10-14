@@ -1,5 +1,6 @@
-import type { Output, SkillResponse } from "@sprint-kakao/contract";
-import { messageQuickReply } from "../builders/outputs.js";
+import type { Output, QuickReply, SkillResponse } from "@sprint-kakao/contract";
+import { MAX_OUTPUTS, MAX_QUICK_REPLIES } from "@sprint-kakao/contract";
+import { messageQuickReply, simpleText } from "../builders/outputs.js";
 
 /**
  * 공통 바로가기 — **폴백·온보딩 완료 폴백 등 서버 로컬 응답에서만** 노출.
@@ -18,4 +19,29 @@ export const NAV_QUICK_REPLIES = [
 /** outputs를 복지 네비 바로가기와 함께 SkillResponse로 감싼다. */
 export function wrap(outputs: Output[]): SkillResponse {
   return { version: "2.0", template: { outputs, quickReplies: NAV_QUICK_REPLIES } };
+}
+
+/** 세션 연결 발화. connect 블록 매칭·안내 버튼이 공유한다. */
+export const CONNECT_UTTERANCE = "AI 복지 연결";
+
+/** 미연결 상태 응답에 노출하는 바로가기(연결 진입 + 온보딩). */
+export const CONNECT_QUICK_REPLIES = [
+  messageQuickReply(CONNECT_UTTERANCE, CONNECT_UTTERANCE),
+  messageQuickReply("맞춤복지", "맞춤복지"),
+];
+
+/** 연결 상태 응답에 항상 붙는 종료 바로가기. */
+export const EXIT_QUICK_REPLY = messageQuickReply("대화 종료", "대화 종료");
+
+/** 연결 상태 응답 끝에 붙는 종료 안내 말풍선. */
+const EXIT_HINT_OUTPUT: Output = simpleText("💬 AI 대화를 마치려면 '종료'라고 입력해 주세요.");
+
+/**
+ * 연결(agent 모드) 상태의 응답을 감싼다 — 종료 안내 말풍선과 "대화 종료" 버블을 항상 덧붙인다.
+ * 말풍선은 MAX_OUTPUTS 여유가 있을 때만 붙이고, 버블은 에이전트 suggestions 뒤에 둔다(MAX_QUICK_REPLIES 이내).
+ */
+export function wrapSession(outputs: Output[], quickReplies: QuickReply[] = []): SkillResponse {
+  const outs = outputs.length < MAX_OUTPUTS ? [...outputs, EXIT_HINT_OUTPUT] : outputs;
+  const qrs = [...quickReplies.slice(0, MAX_QUICK_REPLIES - 1), EXIT_QUICK_REPLY];
+  return { version: "2.0", template: { outputs: outs, quickReplies: qrs } };
 }

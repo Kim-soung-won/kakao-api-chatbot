@@ -5,11 +5,10 @@ import { askRagAgent } from "../../a2a/rag-client.js";
 import { renderRag } from "../render-rag.js";
 
 /**
- * 에이전트 블록 — 온보딩을 제외한 **모든 발화를 A2A 에이전트로 전달**하는 캐치올.
+ * 에이전트 블록 — **모든 발화를 A2A 에이전트로 전달**하는 캐치올.
  *
- * 이전의 에이전트 대화 "모드"(connect/exit/agent-chat)는 제거됐다. 이제 별도 진입/종료 없이
- * 온보딩 외 모든 질의가 곧바로 에이전트로 흐른다. 대화 이력도 서버가 저장하지 않고
- * 에이전트가 관리하므로, 서버는 이번 발화만 넘긴다.
+ * 세션 연결/종료·온보딩은 비활성이다(저장소 구축 부담 → 서버 무상태). 대화 이력은 서버가
+ * 저장하지 않고 에이전트가 관리하므로(sessionId = botUserKey), 서버는 이번 발화만 넘긴다.
  *
  * A2A는 5초를 넘길 수 있어 콜백 플로우로 처리한다:
  * callbackUrl 있으면 즉시 대기응답 후 백그라운드에서 A2A 호출→callbackUrl POST,
@@ -23,7 +22,7 @@ import { renderRag } from "../render-rag.js";
 
 /**
  * 렌더된 출력을 SkillResponse로 감싼다. 버블(quickReplies)은 **에이전트 응답의 suggestions에서
- * 나온 것만** 노출한다 — 서버 고정 NAV 목록을 덧붙이지 않는다. 에이전트가 제안을 안 주면 버블 없음.
+ * 나온 것만** 노출한다 — 서버 고정 버블을 덧붙이지 않는다. 에이전트가 제안을 안 주면 버블 없음.
  */
 function wrapAgent(outputs: Output[], suggestionQr: QuickReply[] = []): SkillResponse {
   return {
@@ -53,6 +52,7 @@ export const agent: SkillBlock = {
     run: async (ctx) => {
       // sessionId = botUserKey — 같은 채팅방의 턴을 에이전트가 세션으로 묶는다.
       const result = await askRagAgent({ query: ctx.utterance, sessionId: ctx.userId });
+      // 버블은 에이전트 suggestions에서 나온 것만 노출(서버 고정 버블 병합 없음).
       const { outputs, quickReplies } = renderRag(result);
       return wrapAgent(outputs, quickReplies);
     },
